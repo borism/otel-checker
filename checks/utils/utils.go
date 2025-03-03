@@ -34,8 +34,12 @@ func GetArguments() Commands {
 	languageValue := flag.String("language", "", "Language used for instrumentation (required). Possible values: dotnet, go, java, js, python")
 	componentsString := flag.String("components", "", "Instrumentation components to test, separated by ',' (required). Possible values: sdk, collector, beyla, alloy")
 	autoInstrumentation := flag.Bool("auto-instrumentation", false, "Provide if your application is using auto instrumentation")
+
+	// javascript
 	instrumentationFile := flag.String("instrumentation-file", "", `Name (including path) to instrumentation file. Required if not using auto-instrumentation. E.g."-instrumentation-file=src/inst/instrumentation.js"`)
 	packageJsonPath := flag.String("package-json-path", "", `Path to package.json file. Required if instrumentation is in JavaScript and the file is not in the same location as the otel-checker is being executed from. E.g. "-package-json-path=src/inst/"`)
+
+	// collector
 	collectorConfigPath := flag.String("collector-config-path", "", `Path to collector's config.yaml file. Required if using Collector and the config file is not in the same location as the otel-checker is being executed from. E.g. "-collector-config-path=src/inst/"`)
 	flag.Parse()
 
@@ -122,4 +126,9 @@ func AddWarning(messages *map[string][]string, component string, message string)
 
 func AddError(messages *map[string][]string, component string, message string) {
 	(*messages)[ERRORS] = append((*messages)[ERRORS], fmt.Sprintf(`%s: %s`, component, message))
+}
+
+func FileExists(path string) bool {
+	_, err := os.ReadFile(path)
+	return err == nil
 }
