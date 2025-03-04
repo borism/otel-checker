@@ -2,14 +2,14 @@ package sdk
 
 import (
 	"fmt"
-	"github.com/Masterminds/semver/v3"
+	"golang.org/x/mod/semver"
 	"strings"
 )
 
 type VersionRange struct {
-	lower          *semver.Version
+	lower          string
 	lowerInclusive bool
-	upper          *semver.Version
+	upper          string
 	upperInclusive bool
 }
 
@@ -37,50 +37,48 @@ func ParseVersionRange(version string) (VersionRange, error) {
 		return VersionRange{}, fmt.Errorf("version does not end with ']' or ')': %s", version)
 	}
 
-	var err error
-	var lower, upper *semver.Version
 	l := strings.TrimLeft(split[0], "[(")
 	if l != "" {
-		lower, err = semver.NewVersion(l)
-		if err != nil {
-			return VersionRange{}, fmt.Errorf("cannot parse lower version %s: %w", l, err)
+		if !semver.IsValid(l) {
+			return VersionRange{}, fmt.Errorf("invalid semver: %s", l)
 		}
 	}
 	u := strings.TrimRight(split[1], ")]")
 	if u != "" {
-		upper, err = semver.NewVersion(u)
-		if err != nil {
-			return VersionRange{}, fmt.Errorf("cannot parse upper version %s: %w", u, err)
+		if !semver.IsValid(u) {
+			return VersionRange{}, fmt.Errorf("invalid semver: %s", u)
 		}
 	}
 	return VersionRange{
-		lower,
+		l,
 		lowerInclusive,
-		upper,
+		u,
 		upperInclusive,
 	}, nil
 }
 
-func (r *VersionRange) matches(v semver.Version) bool {
-	if r.lower != nil {
+func (r *VersionRange) matches(v string) bool {
+	if r.lower != "" {
+		compare := semver.Compare(v, r.lower)
 		if r.lowerInclusive {
-			if v.LessThan(r.lower) {
+			if compare < 0 {
 				return false
 			}
 		} else {
-			if v.LessThanEqual(r.lower) {
+			if compare <= 0 {
 				return false
 			}
 		}
 		return false
 	}
-	if r.upper == nil {
+	if r.upper == "" {
 		return true
 	}
+	compare := semver.Compare(v, r.upper)
 	if r.upperInclusive {
-		return v.GreaterThanEqual(r.upper)
+		return compare >= 0
 	}
-	return v.LessThan(r.upper)
+	return compare < 0
 }
 
 func CheckSDKSetup(

@@ -4,7 +4,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
-	"github.com/Masterminds/semver/v3"
+	"golang.org/x/mod/semver"
 	"gopkg.in/yaml.v3"
 	"os/exec"
 	"otel-checker/checks/utils"
@@ -126,10 +126,9 @@ func findSupportedLibrary(library JavaLibrary, supported SupportedModules) bool 
 					panic(err)
 				}
 				if library.Group == split[0] && library.Artifact == split[1] {
-					v, err := semver.NewVersion(library.Version)
-					if err == nil {
+					if semver.IsValid(library.Version) {
 						// ignore invalid versions from applications
-						if versionRange.matches(*v) {
+						if versionRange.matches(library.Version) {
 							return true
 						}
 					}

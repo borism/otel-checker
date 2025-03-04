@@ -1,7 +1,6 @@
 package sdk
 
 import (
-	"github.com/Masterminds/semver/v3"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
@@ -25,7 +24,7 @@ func TestParseVersionRange(t *testing.T) {
 				t.Errorf("ParseVersionRange() error = %v", err)
 				return
 			}
-			assert.True(t, got.matches(*semver.MustParse(tt.giveVersion)))
+			assert.True(t, got.matches(tt.giveVersion))
 		})
 	}
 }
