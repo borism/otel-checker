@@ -14,7 +14,7 @@ go install github.com/grafana/otel-checker@latest
 2. You can confirm it was installed with:
 ```
 ❯ ls $GOPATH/bin
-otel-checker 
+otel-checker
 ```
 
 ### Flags
@@ -68,8 +68,10 @@ TBD
 TBD
 
 #### Ruby
-TBD
 
+- Ruby version
+- Bundler installation
+- Required dependencies in `Gemfile.lock`:
 
 #### Collector
 - Config receivers and exporters
@@ -103,7 +105,7 @@ Requirement: Golang
 ```
 /Users/maryliag/go/src/otel-checker
 ```
-3. Run 
+3. Run
 ```
 go run main.go
 ```
@@ -121,7 +123,7 @@ go install
 3. You can confirm it was installed with:
 ```
 ❯ ls $GOPATH/bin
-otel-checker 
+otel-checker
 ```
 4. Use from any other directory
 ```
