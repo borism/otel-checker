@@ -136,5 +136,7 @@ func CheckSDKSetup(messages *map[string][]string, language string, autoInstrumen
 		CheckJSSetup(messages, autoInstrumentation, packageJsonPath, instrumentationFile)
 	case "python":
 		CheckPythonSetup(messages, autoInstrumentation)
+	case "ruby":
+		CheckRubySetup(messages, autoInstrumentation)
 	}
 }
