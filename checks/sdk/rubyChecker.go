@@ -88,7 +88,6 @@ func checkTruffleRubyVersion(messages *map[string][]string) bool {
 }
 
 func checkRubyAutoInstrumentation(messages *map[string][]string) {
-	// Read the contents of Gemfile.lock file
 	content, err := os.ReadFile("Gemfile.lock")
 	if err != nil {
 		utils.AddError(messages, "SDK", "Could not find Gemfile.lock. Run 'bundle install' to generate it.")
@@ -97,7 +96,6 @@ func checkRubyAutoInstrumentation(messages *map[string][]string) {
 
 	contentStr := string(content)
 
-	// Check for required dependencies
 	if strings.Contains(contentStr, "opentelemetry-sdk") {
 		utils.AddSuccessfulCheck(messages, "SDK", "Found required dependency: opentelemetry-sdk")
 	} else {
@@ -112,7 +110,6 @@ func checkRubyAutoInstrumentation(messages *map[string][]string) {
 }
 
 func checkRubyCodeBasedInstrumentation(messages *map[string][]string) {
-	// Read the contents of Gemfile.lock file
 	content, err := os.ReadFile("Gemfile.lock")
 	if err != nil {
 		utils.AddError(messages, "SDK", "Could not find Gemfile.lock. Run 'bundle install' to generate it.")
@@ -121,7 +118,6 @@ func checkRubyCodeBasedInstrumentation(messages *map[string][]string) {
 
 	contentStr := string(content)
 
-	// Check for required dependencies
 	if strings.Contains(contentStr, "opentelemetry-sdk") {
 		utils.AddSuccessfulCheck(messages, "SDK", "Found required dependency: opentelemetry-sdk")
 	} else {
