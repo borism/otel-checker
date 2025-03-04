@@ -16,11 +16,23 @@ type VersionRange struct {
 var suffixes = []string{
 	".Final",
 	".RELEASE",
+	".GA",
+	"-M1",
 }
 
 // ParseVersionRange parses versions of the form "[5.0,)", "[2.0,4.0)".
 func ParseVersionRange(version string) (VersionRange, error) {
 	split := strings.Split(version, ",")
+	if len(split) == 1 {
+		v := FixVersion(version)
+		return VersionRange{
+			lower:          v,
+			lowerInclusive: true,
+			upper:          v,
+			upperInclusive: true,
+		}, nil
+	}
+
 	if len(split) != 2 {
 		return VersionRange{}, fmt.Errorf("version has more than one comma: %s", version)
 	}
@@ -63,9 +75,16 @@ func ParseVersionRange(version string) (VersionRange, error) {
 }
 
 func FixVersion(version string) string {
+	version = strings.TrimSpace(version)
 	if version == "" {
 		return version
 	}
+	for _, suffix := range suffixes {
+		if strings.HasSuffix(version, suffix) {
+			version = strings.TrimSuffix(version, suffix)
+		}
+	}
+
 	if !strings.HasPrefix(version, "v") {
 		version = fmt.Sprintf("v%s", version)
 	}
@@ -74,12 +93,11 @@ func FixVersion(version string) string {
 	if len(split) == 1 {
 		version = version + ".0"
 	}
-
-	for _, suffix := range suffixes {
-		if strings.HasSuffix(version, suffix) {
-			return strings.TrimSuffix(version, suffix)
-		}
+	if len(split) == 4 {
+		// pretend build version
+		version = fmt.Sprintf("%s.%s.%s+%s", split[0], split[1], split[2], split[3])
 	}
+
 	return version
 }
 
@@ -95,7 +113,6 @@ func (r *VersionRange) matches(v string) bool {
 				return false
 			}
 		}
-		return false
 	}
 	if r.upper == "" {
 		return true

@@ -112,7 +112,7 @@ func outputSupportedLibraries(deps []JavaLibrary, supported SupportedModules, me
 }
 
 func findSupportedLibrary(library JavaLibrary, supported SupportedModules) bool {
-	for _, module := range supported {
+	for moduleName, module := range supported {
 		for _, instrumentation := range module.Instrumentations {
 			// todo check type (agent or library)
 			for _, version := range instrumentation.TargetVersions {
@@ -123,7 +123,7 @@ func findSupportedLibrary(library JavaLibrary, supported SupportedModules) bool 
 				}
 				versionRange, err := ParseVersionRange(split[2])
 				if err != nil {
-					panic(err)
+					panic(fmt.Sprintf("error parsing version range in module %s: %v", moduleName, err))
 				}
 				if library.Group == split[0] && library.Artifact == split[1] {
 					v := FixVersion(library.Version)
