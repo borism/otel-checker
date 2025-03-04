@@ -7,7 +7,8 @@ import (
 	"log"
 	"net/http"
 
-	checks "otel-checker/checks"
+	"otel-checker/checks"
+	"otel-checker/checks/utils"
 )
 
 //go:embed static/*
@@ -19,7 +20,13 @@ var tmpls embed.FS
 var messages map[string][]string
 
 func main() {
-	messages = checks.RunAllChecks()
+	commands := utils.GetArguments()
+	messages = checks.RunAllChecks(commands)
+
+	if !commands.WebServer {
+		return
+	}
+
 	mux := http.NewServeMux()
 
 	t, err := template.ParseFS(tmpls, "tmpl/*.tmpl")

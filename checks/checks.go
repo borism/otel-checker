@@ -9,9 +9,8 @@ import (
 	"otel-checker/checks/utils"
 )
 
-func RunAllChecks() map[string][]string {
+func RunAllChecks(commands utils.Commands) map[string][]string {
 	messages := utils.CreateMessagesMap()
-	commands := utils.GetArguments()
 
 	grafana.CheckGrafanaSetup(&messages, commands.Language, commands.Components)
 
