@@ -8,6 +8,7 @@ import (
 	"gopkg.in/yaml.v3"
 	"os/exec"
 	"otel-checker/checks/utils"
+	"slices"
 	"strings"
 )
 
@@ -43,13 +44,10 @@ const (
 	Library   InstrumentationType = "LIBRARY"
 )
 
-func CheckJavaSetup(
-	messages *map[string][]string,
-	autoInstrumentation bool,
-) {
+func CheckJavaSetup(messages *map[string][]string, autoInstrumentation bool, debug bool) {
 	checkJavaVersion(messages)
 	if autoInstrumentation {
-		checkJavaAutoInstrumentation(messages)
+		checkJavaAutoInstrumentation(messages, debug)
 	} else {
 		checkJavaCodeBasedInstrumentation(messages)
 	}
@@ -59,26 +57,26 @@ func checkJavaVersion(messages *map[string][]string) {
 	// check for java 8
 }
 
-func checkJavaAutoInstrumentation(messages *map[string][]string) {
+func checkJavaAutoInstrumentation(messages *map[string][]string, debug bool) {
 	supported, err := supportedLibraries()
 	if err != nil {
 		utils.AddError(messages, "SDK", fmt.Sprintf("Error reading supported libraries: %v", err))
 	}
 
 	if utils.FileExists("pom.xml") {
-		checkMaven(messages, supported)
+		checkMaven(messages, supported, debug)
 	}
 	for _, file := range gradleFiles {
 		if utils.FileExists(file) {
-			checkGradle()
+			checkGradle(file)
 		}
 	}
 }
 
 func checkJavaCodeBasedInstrumentation(messages *map[string][]string) {}
 
-func checkMaven(messages *map[string][]string, supported SupportedModules) {
-	println("Checking Maven")
+func checkMaven(messages *map[string][]string, supported SupportedModules, debug bool) {
+	println("Reading Maven dependencies")
 
 	tool := "mvn"
 	if utils.FileExists("mvnw") {
@@ -96,22 +94,25 @@ func checkMaven(messages *map[string][]string, supported SupportedModules) {
 	if len(deps) == 0 {
 		utils.AddWarning(messages, "SDK", "No maven dependencies found")
 	}
-	outputSupportedLibraries(deps, supported, messages)
+	outputSupportedLibraries(deps, supported, messages, debug)
 }
 
-func outputSupportedLibraries(deps []JavaLibrary, supported SupportedModules, messages *map[string][]string) {
+func outputSupportedLibraries(deps []JavaLibrary, supported SupportedModules, messages *map[string][]string, debug bool) {
 	for _, dep := range deps {
-		if findSupportedLibrary(dep, supported) {
-			utils.AddSuccessfulCheck(messages, "SDK", fmt.Sprintf("Found supported library: %s:%s:%s", dep.Group, dep.Artifact, dep.Version))
-		} else {
-			// only in verbose mode
-			//utils.AddWarning(messages, "SDK", fmt.Sprintf("Found unsupported library: %s:%s:%s", dep.Group, dep.Artifact, dep.Version))
+		links := findSupportedLibraries(dep, supported)
+		if len(links) > 0 {
+			utils.AddSuccessfulCheck(messages, "SDK",
+				fmt.Sprintf("Found supported library: %s:%s:%s at %s",
+					dep.Group, dep.Artifact, dep.Version, strings.Join(links, ", ")))
+		} else if debug {
+			utils.AddWarning(messages, "SDK", fmt.Sprintf("Found unsupported library: %s:%s:%s", dep.Group, dep.Artifact, dep.Version))
 		}
-		outputSupportedLibraries(dep.Children, supported, messages)
+		outputSupportedLibraries(dep.Children, supported, messages, false)
 	}
 }
 
-func findSupportedLibrary(library JavaLibrary, supported SupportedModules) bool {
+func findSupportedLibraries(library JavaLibrary, supported SupportedModules) []string {
+	var links []string
 	for moduleName, module := range supported {
 		for _, instrumentation := range module.Instrumentations {
 			// todo check type (agent or library)
@@ -130,14 +131,17 @@ func findSupportedLibrary(library JavaLibrary, supported SupportedModules) bool 
 					if semver.IsValid(v) {
 						// ignore invalid versions from applications
 						if versionRange.matches(v) {
-							return true
+							l := fmt.Sprintf("https://github.com/open-telemetry/opentelemetry-java-instrumentation/tree/main/%s", instrumentation.SrcPath)
+							if !slices.Contains(links, l) {
+								links = append(links, l)
+							}
 						}
 					}
 				}
 			}
 		}
 	}
-	return false
+	return links
 }
 
 func parseMavenDeps(out string) []JavaLibrary {
@@ -165,8 +169,8 @@ func parseMavenDeps(out string) []JavaLibrary {
 	return []JavaLibrary{deps}
 }
 
-func checkGradle() {
-	println("Checking Gradle")
+func checkGradle(file string) {
+	println(fmt.Sprintf("Reading Gradle dependencies from %s", file))
 }
 
 // https://github.com/open-telemetry/opentelemetry-java-instrumentation/pull/13449
@@ -182,5 +186,6 @@ func supportedLibraries() (SupportedModules, error) {
 	if err != nil {
 		return nil, err
 	}
+	delete(modules, "internal")
 	return modules, nil
 }

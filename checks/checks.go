@@ -39,6 +39,7 @@ func RunAllChecks() map[string][]string {
 				commands.AutoInstrumentation,
 				commands.PackageJsonPath,
 				commands.InstrumentationFile,
+				commands.Debug,
 			)
 		}
 	}

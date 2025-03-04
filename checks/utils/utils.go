@@ -21,6 +21,7 @@ type Commands struct {
 	InstrumentationFile string
 	PackageJsonPath     string
 	CollectorConfigPath string
+	Debug               bool
 }
 
 func GetArguments() Commands {
@@ -34,6 +35,7 @@ func GetArguments() Commands {
 	languageValue := flag.String("language", "", "Language used for instrumentation (required). Possible values: dotnet, go, java, js, python")
 	componentsString := flag.String("components", "", "Instrumentation components to test, separated by ',' (required). Possible values: sdk, collector, beyla, alloy")
 	autoInstrumentation := flag.Bool("auto-instrumentation", false, "Provide if your application is using auto instrumentation")
+	debug := flag.Bool("debug", false, "Output debug information")
 
 	// javascript
 	instrumentationFile := flag.String("instrumentation-file", "", `Name (including path) to instrumentation file. Required if not using auto-instrumentation. E.g."-instrumentation-file=src/inst/instrumentation.js"`)
@@ -80,6 +82,7 @@ func GetArguments() Commands {
 	command.InstrumentationFile = *instrumentationFile
 	command.PackageJsonPath = *packageJsonPath
 	command.CollectorConfigPath = *collectorConfigPath
+	command.Debug = *debug
 	return command
 }
 

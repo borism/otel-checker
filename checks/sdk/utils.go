@@ -124,20 +124,14 @@ func (r *VersionRange) matches(v string) bool {
 	return compare < 0
 }
 
-func CheckSDKSetup(
-	messages *map[string][]string,
-	language string,
-	autoInstrumentation bool,
-	packageJsonPath string,
-	instrumentationFile string,
-) {
+func CheckSDKSetup(messages *map[string][]string, language string, autoInstrumentation bool, packageJsonPath string, instrumentationFile string, debug bool) {
 	switch language {
 	case "dotnet":
 		CheckDotNetSetup(messages, autoInstrumentation)
 	case "go":
 		CheckGoSetup(messages, autoInstrumentation)
 	case "java":
-		CheckJavaSetup(messages, autoInstrumentation)
+		CheckJavaSetup(messages, autoInstrumentation, debug)
 	case "js":
 		CheckJSSetup(messages, autoInstrumentation, packageJsonPath, instrumentationFile)
 	case "python":
