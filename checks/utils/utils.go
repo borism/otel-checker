@@ -18,6 +18,7 @@ type Commands struct {
 	Language            string
 	Components          []string
 	AutoInstrumentation bool
+	WebServer           bool
 	InstrumentationFile string
 	PackageJsonPath     string
 	CollectorConfigPath string
@@ -36,6 +37,7 @@ func GetArguments() Commands {
 	componentsString := flag.String("components", "", "Instrumentation components to test, separated by ',' (required). Possible values: sdk, collector, beyla, alloy")
 	autoInstrumentation := flag.Bool("auto-instrumentation", false, "Provide if your application is using auto instrumentation")
 	debug := flag.Bool("debug", false, "Output debug information")
+	webServer := flag.Bool("web-server", false, "Set if you would like the results served in a web server in additon to console output")
 
 	// javascript
 	instrumentationFile := flag.String("instrumentation-file", "", `Name (including path) to instrumentation file. Required if not using auto-instrumentation. E.g."-instrumentation-file=src/inst/instrumentation.js"`)
@@ -78,6 +80,7 @@ func GetArguments() Commands {
 
 	command.Language = *languageValue
 	command.Components = components
+	command.WebServer = *webServer
 	command.AutoInstrumentation = *autoInstrumentation
 	command.InstrumentationFile = *instrumentationFile
 	command.PackageJsonPath = *packageJsonPath
