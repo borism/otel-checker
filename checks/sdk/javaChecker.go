@@ -24,6 +24,10 @@ type JavaLibrary struct {
 	Children []JavaLibrary `json:"children"`
 }
 
+func (l *JavaLibrary) String() string {
+	return fmt.Sprintf("%s:%s:%s", l.Group, l.Artifact, l.Version)
+}
+
 type SupportedModules map[string]SupportedModule
 
 type SupportedModule struct {
@@ -63,24 +67,29 @@ func checkJavaAutoInstrumentation(messages *map[string][]string, debug bool) {
 		utils.AddError(messages, "SDK", fmt.Sprintf("Error reading supported libraries: %v", err))
 	}
 
+	deps := readDependencies(messages)
+	outputSupportedLibraries(deps, supported, messages, debug)
+}
+
+func readDependencies(messages *map[string][]string) []JavaLibrary {
 	if utils.FileExists("pom.xml") {
-		checkMaven(messages, supported, debug)
+		return checkMaven(messages)
 	}
 	for _, file := range gradleFiles {
 		if utils.FileExists(file) {
-			checkGradle(file)
+			return checkGradle(file, messages)
 		}
 	}
+	return nil
 }
 
 func checkJavaCodeBasedInstrumentation(messages *map[string][]string) {}
 
-func checkMaven(messages *map[string][]string, supported SupportedModules, debug bool) {
+func checkMaven(messages *map[string][]string) []JavaLibrary {
 	println("Reading Maven dependencies")
 
 	tool := "mvn"
 	if utils.FileExists("mvnw") {
-		// todo windows
 		tool = "./mvnw"
 	}
 	// call maven to get dependencies
@@ -92,9 +101,9 @@ func checkMaven(messages *map[string][]string, supported SupportedModules, debug
 	out := string(output)
 	deps := parseMavenDeps(out)
 	if len(deps) == 0 {
-		utils.AddWarning(messages, "SDK", "No maven dependencies found")
+		utils.AddWarning(messages, "SDK", "No Maven dependencies found")
 	}
-	outputSupportedLibraries(deps, supported, messages, debug)
+	return deps
 }
 
 func outputSupportedLibraries(deps []JavaLibrary, supported SupportedModules, messages *map[string][]string, debug bool) {
@@ -169,8 +178,24 @@ func parseMavenDeps(out string) []JavaLibrary {
 	return []JavaLibrary{deps}
 }
 
-func checkGradle(file string) {
+func checkGradle(file string, messages *map[string][]string) []JavaLibrary {
 	println(fmt.Sprintf("Reading Gradle dependencies from %s", file))
+
+	tool := "gradle"
+	if utils.FileExists("gradlew") {
+		tool = "./gradlew"
+	}
+	cmd := exec.Command(tool, fmt.Sprintf("--build-file=%s", file), "dependencies", "--configuration=runtimeClasspath")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		utils.AddError(messages, "SDK", fmt.Sprintf("Error running '%s':\n%v\n%s", cmd.String(), err, output))
+	}
+	out := string(output)
+	deps := parseGradleDeps(out)
+	if len(deps) == 0 {
+		utils.AddWarning(messages, "SDK", "No Gradle dependencies found")
+	}
+	return deps
 }
 
 // https://github.com/open-telemetry/opentelemetry-java-instrumentation/pull/13449
@@ -188,4 +213,33 @@ func supportedLibraries() (SupportedModules, error) {
 	}
 	delete(modules, "internal")
 	return modules, nil
+}
+
+func parseGradleDeps(out string) []JavaLibrary {
+	lines := strings.Split(out, "\n")
+	var deps []JavaLibrary
+	for _, l := range lines {
+		if strings.Contains(l, "---") {
+			index := strings.Index(l, "---")
+			dep := strings.TrimSpace(l[index+4:])
+			split := strings.Split(dep, ":")
+			if len(split) == 3 {
+				d := JavaLibrary{
+					Group:    split[0],
+					Artifact: split[1],
+					Version:  split[2],
+				}
+				s := d.String()
+				if !slices.ContainsFunc(
+					deps,
+					func(l JavaLibrary) bool {
+						return l.String() == s
+					}) {
+					deps = append(deps, d)
+				}
+			}
+		}
+	}
+
+	return deps
 }
