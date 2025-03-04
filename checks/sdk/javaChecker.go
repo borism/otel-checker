@@ -1,12 +1,11 @@
 package sdk
 
 import (
-	"embed"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"github.com/Masterminds/semver/v3"
 	"gopkg.in/yaml.v3"
-	"os"
 	"os/exec"
 	"otel-checker/checks/utils"
 	"strings"
@@ -18,23 +17,23 @@ var gradleFiles = []string{
 }
 
 type JavaLibrary struct {
-	Group    string         `json:"groupId"`
-	Artifact string         `json:"artifactId"`
-	Version  semver.Version `json:"version"`
-	Children []JavaLibrary  `json:"children"`
+	Group    string        `json:"groupId"`
+	Artifact string        `json:"artifactId"`
+	Version  string        `json:"version"`
+	Children []JavaLibrary `json:"children"`
 }
 
 type SupportedModules map[string]SupportedModule
 
 type SupportedModule struct {
-	Instrumentations []Instrumentation `json:"instrumentations"`
+	Instrumentations []Instrumentation `yaml:"instrumentations"`
 }
 
 type Instrumentation struct {
-	Name           string                `json:"name"`
-	SrcPath        string                `json:"srcPath"`
-	Types          []InstrumentationType `json:"types"`
-	TargetVersions []string              `json:"target_versions"`
+	Name           string                `yaml:"name"`
+	SrcPath        string                `yaml:"srcPath"`
+	Types          []InstrumentationType `yaml:"types"`
+	TargetVersions []string              `yaml:"target_versions"`
 }
 
 type InstrumentationType string
@@ -93,7 +92,6 @@ func checkMaven(messages *map[string][]string, supported SupportedModules) {
 		utils.AddError(messages, "SDK", fmt.Sprintf("Error running maven dependency:tree:\n%v\n%s", err, output))
 	}
 	out := string(output)
-	println(out)
 	deps := parseMavenDeps(out)
 	if len(deps) == 0 {
 		utils.AddWarning(messages, "SDK", "No maven dependencies found")
@@ -103,10 +101,13 @@ func checkMaven(messages *map[string][]string, supported SupportedModules) {
 
 func outputSupportedLibraries(deps []JavaLibrary, supported SupportedModules, messages *map[string][]string) {
 	for _, dep := range deps {
-		library := findSupportedLibrary(dep, supported)
-		if library {
+		if findSupportedLibrary(dep, supported) {
 			utils.AddSuccessfulCheck(messages, "SDK", fmt.Sprintf("Found supported library: %s:%s:%s", dep.Group, dep.Artifact, dep.Version))
+		} else {
+			// only in verbose mode
+			//utils.AddWarning(messages, "SDK", fmt.Sprintf("Found unsupported library: %s:%s:%s", dep.Group, dep.Artifact, dep.Version))
 		}
+		outputSupportedLibraries(dep.Children, supported, messages)
 	}
 }
 
@@ -120,13 +121,17 @@ func findSupportedLibrary(library JavaLibrary, supported SupportedModules) bool 
 				if len(split) != 3 {
 					panic(fmt.Sprintf("invalid version range: %s", version))
 				}
+				versionRange, err := ParseVersionRange(split[2])
+				if err != nil {
+					panic(err)
+				}
 				if library.Group == split[0] && library.Artifact == split[1] {
-					versionRange, err := ParseVersionRange(split[2])
-					if err != nil {
-						panic(err)
-					}
-					if versionRange.matches(library.Version) {
-						return true
+					v, err := semver.NewVersion(library.Version)
+					if err == nil {
+						// ignore invalid versions from applications
+						if versionRange.matches(*v) {
+							return true
+						}
 					}
 				}
 			}
@@ -157,17 +162,7 @@ func parseMavenDeps(out string) []JavaLibrary {
 		return nil
 	}
 
-	dependencies := []JavaLibrary{deps}
-	printDeps(dependencies)
-
-	return dependencies
-}
-
-func printDeps(deps []JavaLibrary) {
-	for _, d := range deps {
-		fmt.Printf("%s:%s:%s\n", d.Group, d.Artifact, d.Version)
-		printDeps(d.Children)
-	}
+	return []JavaLibrary{deps}
 }
 
 func checkGradle() {
@@ -177,16 +172,12 @@ func checkGradle() {
 // see https://cloud-native.slack.com/archives/C014L2KCTE3/p1741003980069869
 // CNCF slack channel #otel-java
 //
-//go:embed checks/sdk/supported-java-libraries.yaml
-var supportedModules string
+//go:embed supported-java-libraries.yaml
+var supportedModules []byte
 
 func supportedLibraries() (SupportedModules, error) {
-	file, err := os.ReadFile("checks/sdk/supported-java-libraries.yaml")
-	if err != nil {
-		return nil, err
-	}
 	modules := SupportedModules{}
-	err = yaml.Unmarshal(file, &modules)
+	err := yaml.Unmarshal(supportedModules, &modules)
 	if err != nil {
 		return nil, err
 	}
