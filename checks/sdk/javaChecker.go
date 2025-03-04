@@ -126,9 +126,10 @@ func findSupportedLibrary(library JavaLibrary, supported SupportedModules) bool 
 					panic(err)
 				}
 				if library.Group == split[0] && library.Artifact == split[1] {
-					if semver.IsValid(library.Version) {
+					v := FixVersion(library.Version)
+					if semver.IsValid(v) {
 						// ignore invalid versions from applications
-						if versionRange.matches(library.Version) {
+						if versionRange.matches(v) {
 							return true
 						}
 					}
@@ -168,6 +169,7 @@ func checkGradle() {
 	println("Checking Gradle")
 }
 
+// https://github.com/open-telemetry/opentelemetry-java-instrumentation/pull/13449
 // see https://cloud-native.slack.com/archives/C014L2KCTE3/p1741003980069869
 // CNCF slack channel #otel-java
 //

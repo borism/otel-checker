@@ -13,6 +13,11 @@ type VersionRange struct {
 	upperInclusive bool
 }
 
+var suffixes = []string{
+	".Final",
+	".RELEASE",
+}
+
 // ParseVersionRange parses versions of the form "[5.0,)", "[2.0,4.0)".
 func ParseVersionRange(version string) (VersionRange, error) {
 	split := strings.Split(version, ",")
@@ -37,16 +42,16 @@ func ParseVersionRange(version string) (VersionRange, error) {
 		return VersionRange{}, fmt.Errorf("version does not end with ']' or ')': %s", version)
 	}
 
-	l := strings.TrimLeft(split[0], "[(")
+	l := FixVersion(strings.TrimLeft(split[0], "[("))
 	if l != "" {
 		if !semver.IsValid(l) {
-			return VersionRange{}, fmt.Errorf("invalid semver: %s", l)
+			return VersionRange{}, fmt.Errorf("invalid semver: '%s'", l)
 		}
 	}
-	u := strings.TrimRight(split[1], ")]")
+	u := FixVersion(strings.TrimRight(split[1], ")]"))
 	if u != "" {
 		if !semver.IsValid(u) {
-			return VersionRange{}, fmt.Errorf("invalid semver: %s", u)
+			return VersionRange{}, fmt.Errorf("invalid semver: '%s'", u)
 		}
 	}
 	return VersionRange{
@@ -55,6 +60,27 @@ func ParseVersionRange(version string) (VersionRange, error) {
 		u,
 		upperInclusive,
 	}, nil
+}
+
+func FixVersion(version string) string {
+	if version == "" {
+		return version
+	}
+	if !strings.HasPrefix(version, "v") {
+		version = fmt.Sprintf("v%s", version)
+	}
+
+	split := strings.Split(version, ".")
+	if len(split) == 1 {
+		version = version + ".0"
+	}
+
+	for _, suffix := range suffixes {
+		if strings.HasSuffix(version, suffix) {
+			return strings.TrimSuffix(version, suffix)
+		}
+	}
+	return version
 }
 
 func (r *VersionRange) matches(v string) bool {
