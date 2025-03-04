@@ -130,3 +130,11 @@ otel-checker \
 	-auto-instrumentation \
 	-components=sdk
 ```
+
+Or start directly from the source code:
+```
+go run otel-checker \
+	-language=js \
+	-auto-instrumentation \
+	-components=sdk
+```
