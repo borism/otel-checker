@@ -8,7 +8,9 @@ import (
 	"gopkg.in/yaml.v3"
 	"os/exec"
 	"otel-checker/checks/utils"
+	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -57,7 +59,25 @@ func CheckJavaSetup(reporter *utils.ComponentReporter, autoInstrumentation bool,
 }
 
 func checkJavaVersion(reporter *utils.ComponentReporter) {
-	// check for java 8
+	out := RunCommand(reporter, exec.Command("java", "-version"))
+	if out != "" {
+		//openjdk version "21.0.2" 2024-01-16 LTS
+		line := strings.Split(out, "\n")[0]
+		field := strings.Split(line, " ")[2]
+		version := strings.Trim(field, "\"")
+		major, err := strconv.Atoi(strings.Split(version, ".")[0])
+		if err != nil {
+			reporter.AddError(fmt.Sprintf("Error parsing Java version %s: %v", out, err))
+		}
+		if strings.HasPrefix(version, "1.8") {
+			major = 8
+		}
+		if major < 8 {
+			reporter.AddError(fmt.Sprintf("Java version %s is not supported. Please use Java 8 or higher", version))
+		} else {
+			reporter.AddSuccessfulCheck(fmt.Sprintf("Java version %s is supported", version))
+		}
+	}
 }
 
 func checkJavaAutoInstrumentation(reporter *utils.ComponentReporter, debug bool) {
@@ -93,22 +113,36 @@ func readDependencies(reporter *utils.ComponentReporter) []JavaLibrary {
 func checkMaven(reporter *utils.ComponentReporter) []JavaLibrary {
 	println("Reading Maven dependencies")
 
-	tool := "mvn"
-	if utils.FileExists("mvnw") {
-		tool = "./mvnw"
+	out := RunCommand(reporter, exec.Command(searchWrapper("mvn", "mvnw"),
+		"dependency:tree", "-Dscope=runtime", "-DoutputType=json"))
+	if out == "" {
+		return []JavaLibrary{}
 	}
-	// call maven to get dependencies
-	cmd := exec.Command(tool, "dependency:tree", "-Dscope=runtime", "-DoutputType=json")
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		reporter.AddError(fmt.Sprintf("Error running maven dependency:tree:\n%v\n%s", err, output))
-	}
-	out := string(output)
 	deps := parseMavenDeps(out)
 	if len(deps) == 0 {
 		reporter.AddWarning("No Maven dependencies found")
 	}
 	return deps
+}
+
+func searchWrapper(base string, wrapper string) string {
+	tool := getWrapper(wrapper, []string{"."})
+	if tool == "" {
+		return base
+	}
+	return tool
+}
+
+func getWrapper(wrapper string, level []string) string {
+	if len(level) > 10 {
+		return ""
+	}
+	p := filepath.Join(filepath.Join(level...), wrapper)
+	if utils.FileExists(p) {
+		// the . is needed to run the wrapper in the current directory
+		return fmt.Sprintf(".%c%s", filepath.Separator, p)
+	}
+	return getWrapper(wrapper, append(level, ".."))
 }
 
 func outputSupportedLibraries(
@@ -185,18 +219,13 @@ func parseMavenDeps(out string) []JavaLibrary {
 }
 
 func checkGradle(file string, reporter *utils.ComponentReporter) []JavaLibrary {
-	println(fmt.Sprintf("Reading Gradle dependencies from %s", file))
+	println("Reading Gradle dependencies")
 
-	tool := "gradle"
-	if utils.FileExists("gradlew") {
-		tool = "./gradlew"
+	out := RunCommand(reporter, exec.Command(searchWrapper("gradle", "gradlew"),
+		fmt.Sprintf("--build-file=%s", file), "dependencies", "--configuration=runtimeClasspath"))
+	if out == "" {
+		return []JavaLibrary{}
 	}
-	cmd := exec.Command(tool, fmt.Sprintf("--build-file=%s", file), "dependencies", "--configuration=runtimeClasspath")
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		reporter.AddError(fmt.Sprintf("Error running '%s':\n%v\n%s", cmd.String(), err, output))
-	}
-	out := string(output)
 	deps := parseGradleDeps(out)
 	if len(deps) == 0 {
 		reporter.AddWarning("No Gradle dependencies found")
