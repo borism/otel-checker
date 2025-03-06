@@ -67,10 +67,10 @@ func checkDotNetVersion(reporter *utils.ComponentReporter) {
 
 func checkDotNetAutoInstrumentation(reporter *utils.ComponentReporter) {
 	requiredVars := []env.EnvVar{
-		env.CoreCLREnableProfiling,
-		env.CoreCLRProfiler,
-		env.CoreCLRProfilerPath,
-		env.OtelDotNetAutoHome,
+		CoreCLREnableProfiling,
+		CoreCLRProfiler,
+		CoreCLRProfilerPath,
+		OtelDotNetAutoHome,
 	}
 
 	values, errors := env.CheckEnvVars(requiredVars...)
@@ -79,7 +79,7 @@ func checkDotNetAutoInstrumentation(reporter *utils.ComponentReporter) {
 	}
 
 	// Additional validation for profiler GUID
-	if profilerValue, ok := values[env.CoreCLRProfiler.Name]; ok {
+	if profilerValue, ok := values[CoreCLRProfiler.Name]; ok {
 		expectedProfilerValue := "{918728DD-259F-4A6A-AC2B-B85E1B658318}"
 		if profilerValue != expectedProfilerValue {
 			reporter.AddError(fmt.Sprintf("CORECLR_PROFILER has incorrect value. Expected: %s, Got: %s", expectedProfilerValue, profilerValue))

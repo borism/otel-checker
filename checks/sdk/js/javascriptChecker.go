@@ -22,23 +22,7 @@ func CheckJSSetup(reporter *utils.ComponentReporter, commands utils.Commands) {
 }
 
 func checkEnvVars(reporter *utils.ComponentReporter) {
-	// Check Node resource detectors
-	nodeDetectors := env.EnvVar{
-		Name:     "OTEL_NODE_RESOURCE_DETECTORS",
-		Required: false,
-		Validator: func(value string) error {
-			requiredDetectors := []string{"env", "host", "os", "serviceinstance"}
-			for _, detector := range requiredDetectors {
-				if !strings.Contains(value, detector) {
-					return fmt.Errorf("must include '%s'", detector)
-				}
-			}
-			return nil
-		},
-		Description: "Node resource detectors",
-	}
-
-	value, err := env.CheckEnvVar(nodeDetectors)
+	value, err := env.CheckEnvVar(NodeResourceDetectors)
 	if err != nil {
 		reporter.AddWarning(fmt.Sprintf("It's recommended the environment variable OTEL_NODE_RESOURCE_DETECTORS to be set to at least `env,host,os,serviceinstance`: %s", err))
 	} else {
@@ -72,7 +56,7 @@ func checkJSAutoInstrumentation(
 	packageJsonPath string,
 ) {
 	// Check NODE_OPTIONS
-	value, err := env.CheckEnvVar(env.NodeOptions)
+	value, err := env.CheckEnvVar(NodeOptions)
 	if err != nil {
 		reporter.AddWarning(fmt.Sprintf("NODE_OPTIONS not set correctly: %s", err))
 	} else {
@@ -111,7 +95,7 @@ func checkJSCodeBasedInstrumentation(
 	instrumentationFile string,
 ) {
 	// Check NODE_OPTIONS is not set for auto-instrumentation
-	if env.IsEnvVarSet(env.NodeOptions) {
+	if env.IsEnvVarSet(NodeOptions) {
 		reporter.AddError(`The flag "-manual-instrumentation" was set, but the value of NODE_OPTIONS is set to require auto-instrumentation. Run "unset NODE_OPTIONS" to remove the requirement that can cause a conflict with manual instrumentations`)
 	}
 
@@ -144,17 +128,19 @@ func checkJSCodeBasedInstrumentation(
 		reporter.AddError(`Dependency @opentelemetry/exporter-trace-otlp-proto added on package.json, which is not supported by Grafana. Switch the dependency to "@opentelemetry/exporter-trace-otlp-http" instead`)
 	}
 
-	// Check Exporter
+	// Check instrumentation file
 	instrumentationFileContent, err := os.ReadFile(instrumentationFile)
 	if err != nil {
 		reporter.AddError(fmt.Sprintf("Could not check file %s: %s", instrumentationFile, err))
-	} else {
-		if strings.Contains(string(instrumentationFileContent), "ConsoleSpanExporter") {
-			reporter.AddWarning("Instrumentation file is using ConsoleSpanExporter. This exporter is useful during debugging, but replace with OTLPTraceExporter to send to Grafana Cloud")
-		}
-		if strings.Contains(string(instrumentationFileContent), "ConsoleMetricExporter") {
-			reporter.AddWarning("Instrumentation file is using ConsoleMetricExporter. This exporter is useful during debugging, but replace with OTLPMetricExporter to send to Grafana Cloud")
-		}
+		return
+	}
+
+	content = string(instrumentationFileContent)
+	if strings.Contains(content, "ConsoleSpanExporter") {
+		reporter.AddWarning("Instrumentation file is using ConsoleSpanExporter. This exporter is useful during debugging, but replace with OTLPTraceExporter to send to Grafana Cloud")
+	}
+	if strings.Contains(content, "ConsoleMetricExporter") {
+		reporter.AddWarning("Instrumentation file is using ConsoleMetricExporter. This exporter is useful during debugging, but replace with OTLPMetricExporter to send to Grafana Cloud")
 	}
 }
 

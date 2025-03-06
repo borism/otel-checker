@@ -3,6 +3,7 @@ package grafana
 import (
 	"fmt"
 	"net/http"
+	"otel-checker/checks/beyla"
 	"otel-checker/checks/env"
 	"otel-checker/checks/utils"
 	"slices"
@@ -28,23 +29,27 @@ func checkEnvVarsGrafana(reporter utils.Reporter, grafana *utils.ComponentReport
 
 	values, errors := env.CheckEnvVars(commonVars...)
 	for _, err := range errors {
-		grafana.AddError(err.Error())
+		if strings.HasPrefix(err.Error(), "warning:") {
+			grafana.AddWarning(strings.TrimPrefix(err.Error(), "warning: "))
+		} else {
+			grafana.AddError(err.Error())
+		}
 	}
 
 	// Check Beyla specific variables if component is enabled
 	if slices.Contains(components, "beyla") {
-		beyla := reporter.Component("Beyla")
+		c := reporter.Component("Beyla")
 		beylaVars := []env.EnvVar{
-			env.BeylaServiceName,
-			env.BeylaOpenPort,
-			env.GrafanaCloudSubmit,
-			env.GrafanaCloudInstanceID,
-			env.GrafanaCloudAPIKey,
+			beyla.ServiceName,
+			beyla.OpenPort,
+			beyla.GrafanaCloudSubmit,
+			beyla.GrafanaCloudInstanceID,
+			beyla.GrafanaCloudAPIKey,
 		}
 
 		_, errors := env.CheckEnvVars(beylaVars...)
 		for _, err := range errors {
-			beyla.AddError(err.Error())
+			c.AddError(err.Error())
 		}
 	}
 }
