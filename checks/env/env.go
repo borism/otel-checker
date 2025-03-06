@@ -125,7 +125,11 @@ func CheckEnvVar(envVar EnvVar, reporter *utils.ComponentReporter) {
 
 	if envVar.Validator != nil && value != "" {
 		if err := envVar.Validator(value); err != nil {
-			reporter.AddError(fmt.Sprintf("%s: %s", envVar.Name, err))
+			if envVar.Required {
+				reporter.AddError(fmt.Sprintf("%s: %s", envVar.Name, err))
+			} else {
+				reporter.AddWarning(fmt.Sprintf("%s: %s", envVar.Name, err))
+			}
 			return
 		}
 	}

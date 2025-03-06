@@ -22,7 +22,7 @@ var (
 			requiredDetectors := []string{"env", "host", "os", "serviceinstance"}
 			for _, detector := range requiredDetectors {
 				if !strings.Contains(value, detector) {
-					return fmt.Errorf("must include '%s'", detector)
+					return fmt.Errorf("should include '%s'", detector)
 				}
 			}
 			return nil

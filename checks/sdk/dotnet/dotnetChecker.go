@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"syscall"
 
 	"otel-checker/checks/env"
 	"otel-checker/checks/utils"
