@@ -5,6 +5,8 @@ import (
 	"os"
 	"regexp"
 	"strings"
+
+	"otel-checker/checks/utils"
 )
 
 // EnvVar represents an environment variable configuration
@@ -108,12 +110,13 @@ var (
 	}
 )
 
-// CheckEnvVar validates an environment variable against its configuration
-func CheckEnvVar(envVar EnvVar) (string, error) {
+// CheckEnvVar validates an environment variable against its configuration and reports the result
+func CheckEnvVar(envVar EnvVar, reporter *utils.ComponentReporter) {
 	value := os.Getenv(envVar.Name)
 
 	if envVar.Required && value == "" {
-		return "", fmt.Errorf("%s is required", envVar.Name)
+		reporter.AddError(fmt.Sprintf("%s is required", envVar.Name))
+		return
 	}
 
 	if value == "" && envVar.DefaultValue != "" {
@@ -122,28 +125,24 @@ func CheckEnvVar(envVar EnvVar) (string, error) {
 
 	if envVar.Validator != nil && value != "" {
 		if err := envVar.Validator(value); err != nil {
-			return value, fmt.Errorf("%s: %s", envVar.Name, err)
+			reporter.AddError(fmt.Sprintf("%s: %s", envVar.Name, err))
+			return
 		}
 	}
 
-	return value, nil
+	if !envVar.Required && value == "" {
+		reporter.AddWarning(fmt.Sprintf("%s is not set", envVar.Name))
+		return
+	}
+
+	reporter.AddSuccessfulCheck(fmt.Sprintf("%s is set correctly", envVar.Name))
 }
 
-// CheckEnvVars validates multiple environment variables
-func CheckEnvVars(envVars ...EnvVar) (map[string]string, []error) {
-	values := make(map[string]string)
-	var errors []error
-
+// CheckEnvVars validates multiple environment variables and reports the results
+func CheckEnvVars(reporter *utils.ComponentReporter, envVars ...EnvVar) {
 	for _, envVar := range envVars {
-		value, err := CheckEnvVar(envVar)
-		if err != nil {
-			errors = append(errors, err)
-		} else {
-			values[envVar.Name] = value
-		}
+		CheckEnvVar(envVar, reporter)
 	}
-
-	return values, errors
 }
 
 // GetEnvVar returns the value of an environment variable with its default value if not set

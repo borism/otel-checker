@@ -27,18 +27,11 @@ func checkEnvVarsGrafana(reporter utils.Reporter, grafana *utils.ComponentReport
 		env.OtelLogsExporter,
 	}
 
-	values, errors := env.CheckEnvVars(commonVars...)
-	for _, err := range errors {
-		if strings.HasPrefix(err.Error(), "warning:") {
-			grafana.AddWarning(strings.TrimPrefix(err.Error(), "warning: "))
-		} else {
-			grafana.AddError(err.Error())
-		}
-	}
+	env.CheckEnvVars(grafana, commonVars...)
 
 	// Check Beyla specific variables if component is enabled
 	if slices.Contains(components, "beyla") {
-		c := reporter.Component("Beyla")
+		beyla := reporter.Component("Beyla")
 		beylaVars := []env.EnvVar{
 			beyla.ServiceName,
 			beyla.OpenPort,
@@ -47,10 +40,7 @@ func checkEnvVarsGrafana(reporter utils.Reporter, grafana *utils.ComponentReport
 			beyla.GrafanaCloudAPIKey,
 		}
 
-		_, errors := env.CheckEnvVars(beylaVars...)
-		for _, err := range errors {
-			c.AddError(err.Error())
-		}
+		env.CheckEnvVars(beyla, beylaVars...)
 	}
 }
 

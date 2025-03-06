@@ -22,12 +22,7 @@ func CheckJSSetup(reporter *utils.ComponentReporter, commands utils.Commands) {
 }
 
 func checkEnvVars(reporter *utils.ComponentReporter) {
-	value, err := env.CheckEnvVar(NodeResourceDetectors)
-	if err != nil {
-		reporter.AddWarning(fmt.Sprintf("It's recommended the environment variable OTEL_NODE_RESOURCE_DETECTORS to be set to at least `env,host,os,serviceinstance`: %s", err))
-	} else {
-		reporter.AddSuccessfulCheck("OTEL_NODE_RESOURCE_DETECTORS has recommended values")
-	}
+	env.CheckEnvVar(NodeResourceDetectors, reporter)
 }
 
 func checkNodeVersion(reporter *utils.ComponentReporter) {
@@ -56,12 +51,7 @@ func checkJSAutoInstrumentation(
 	packageJsonPath string,
 ) {
 	// Check NODE_OPTIONS
-	value, err := env.CheckEnvVar(NodeOptions)
-	if err != nil {
-		reporter.AddWarning(fmt.Sprintf("NODE_OPTIONS not set correctly: %s", err))
-	} else {
-		reporter.AddSuccessfulCheck("NODE_OPTIONS set correctly")
-	}
+	env.CheckEnvVar(NodeOptions, reporter)
 
 	// Dependencies for auto instrumentation on package.json
 	filePath := packageJsonPath + "package.json"

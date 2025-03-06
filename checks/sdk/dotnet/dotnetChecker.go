@@ -73,21 +73,15 @@ func checkDotNetAutoInstrumentation(reporter *utils.ComponentReporter) {
 		OtelDotNetAutoHome,
 	}
 
-	values, errors := env.CheckEnvVars(requiredVars...)
-	for _, err := range errors {
-		reporter.AddError(err.Error())
-	}
+	env.CheckEnvVars(reporter, requiredVars...)
 
 	// Additional validation for profiler GUID
-	if profilerValue, ok := values[CoreCLRProfiler.Name]; ok {
+	profilerValue := env.GetEnvVar(CoreCLRProfiler)
+	if profilerValue != "" {
 		expectedProfilerValue := "{918728DD-259F-4A6A-AC2B-B85E1B658318}"
 		if profilerValue != expectedProfilerValue {
 			reporter.AddError(fmt.Sprintf("CORECLR_PROFILER has incorrect value. Expected: %s, Got: %s", expectedProfilerValue, profilerValue))
 		}
-	}
-
-	if len(errors) == 0 {
-		reporter.AddSuccessfulCheck("All required environment variables for .NET auto-instrumentation are set with correct values.")
 	}
 }
 
