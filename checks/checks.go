@@ -6,6 +6,8 @@ import (
 	"otel-checker/checks/collector"
 	"otel-checker/checks/grafana"
 	"otel-checker/checks/sdk"
+	"otel-checker/checks/sdk/java"
+	"otel-checker/checks/sdk/python"
 	"otel-checker/checks/utils"
 )
 
@@ -32,16 +34,26 @@ func RunAllChecks(commands utils.Commands) map[string][]string {
 		}
 
 		if c == "sdk" {
-			sdk.CheckSDKSetup(
-				reporter.Component("SDK"),
-				commands.Language,
-				commands.ManualInstrumentation,
-				commands.PackageJsonPath,
-				commands.InstrumentationFile,
-				commands.Debug,
-			)
+			SDKSetup(reporter.Component("SDK"), commands)
 		}
 	}
 
 	return reporter.PrintResults()
+}
+
+func SDKSetup(reporter *utils.ComponentReporter, commands utils.Commands) {
+	switch commands.Language {
+	case "dotnet":
+		sdk.CheckDotNetSetup(reporter, commands)
+	case "go":
+		sdk.CheckGoSetup(reporter, commands)
+	case "java":
+		java.CheckSetup(reporter, commands)
+	case "js":
+		sdk.CheckJSSetup(reporter, commands)
+	case "python":
+		python.CheckSetup(reporter, commands)
+	case "ruby":
+		sdk.CheckRubySetup(reporter, commands)
+	}
 }
