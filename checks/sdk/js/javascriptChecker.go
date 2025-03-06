@@ -1,4 +1,4 @@
-package sdk
+package js
 
 import (
 	"fmt"
@@ -17,6 +17,7 @@ func CheckJSSetup(reporter *utils.ComponentReporter, commands utils.Commands) {
 	} else {
 		checkJSAutoInstrumentation(reporter, commands.PackageJsonPath)
 	}
+	checkSupportedLibraries(reporter, commands)
 }
 
 func checkEnvVars(reporter *utils.ComponentReporter) {
@@ -117,6 +118,30 @@ func checkJSCodeBasedInstrumentation(
 		}
 		if strings.Contains(string(instrumentationFileContent), "ConsoleMetricExporter") {
 			reporter.AddWarning("Instrumentation file is using ConsoleMetricExporter. This exporter is useful during debugging, but replace with OTLPMetricExporter to send to Grafana Cloud")
+		}
+	}
+}
+
+func checkSupportedLibraries(reporter *utils.ComponentReporter, commands utils.Commands) {
+	supported, err := supportedLibraries()
+	if err != nil {
+		reporter.AddError(fmt.Sprintf("Error reading supported libraries: %v", err))
+		return
+	}
+
+	deps := readDependencies(reporter)
+	if len(deps) == 0 {
+		return
+	}
+
+	for _, dep := range deps {
+		links := findSupportedLibraries(dep, supported)
+		if len(links) > 0 {
+			reporter.AddSuccessfulCheck(
+				fmt.Sprintf("Found supported library: %s:%s at %s",
+					dep.Name, dep.Version, strings.Join(links, ", ")))
+		} else if commands.Debug {
+			reporter.AddWarning(fmt.Sprintf("Found unsupported library: %s:%s", dep.Name, dep.Version))
 		}
 	}
 }
