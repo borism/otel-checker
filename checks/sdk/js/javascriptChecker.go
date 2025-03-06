@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"otel-checker/checks/env"
 	"otel-checker/checks/utils"
 	"strconv"
 	"strings"
@@ -21,12 +22,25 @@ func CheckJSSetup(reporter *utils.ComponentReporter, commands utils.Commands) {
 }
 
 func checkEnvVars(reporter *utils.ComponentReporter) {
-	if os.Getenv("OTEL_NODE_RESOURCE_DETECTORS") == "" ||
-		!strings.Contains(os.Getenv("OTEL_NODE_RESOURCE_DETECTORS"), "env") ||
-		!strings.Contains(os.Getenv("OTEL_NODE_RESOURCE_DETECTORS"), "host") ||
-		!strings.Contains(os.Getenv("OTEL_NODE_RESOURCE_DETECTORS"), "os") ||
-		!strings.Contains(os.Getenv("OTEL_NODE_RESOURCE_DETECTORS"), "serviceinstance") {
-		reporter.AddWarning("It's recommended the environment variable OTEL_NODE_RESOURCE_DETECTORS to be set to at least `env,host,os,serviceinstance`")
+	// Check Node resource detectors
+	nodeDetectors := env.EnvVar{
+		Name:     "OTEL_NODE_RESOURCE_DETECTORS",
+		Required: false,
+		Validator: func(value string) error {
+			requiredDetectors := []string{"env", "host", "os", "serviceinstance"}
+			for _, detector := range requiredDetectors {
+				if !strings.Contains(value, detector) {
+					return fmt.Errorf("must include '%s'", detector)
+				}
+			}
+			return nil
+		},
+		Description: "Node resource detectors",
+	}
+
+	value, err := env.CheckEnvVar(nodeDetectors)
+	if err != nil {
+		reporter.AddWarning(fmt.Sprintf("It's recommended the environment variable OTEL_NODE_RESOURCE_DETECTORS to be set to at least `env,host,os,serviceinstance`: %s", err))
 	} else {
 		reporter.AddSuccessfulCheck("OTEL_NODE_RESOURCE_DETECTORS has recommended values")
 	}
@@ -38,11 +52,13 @@ func checkNodeVersion(reporter *utils.ComponentReporter) {
 
 	if err != nil {
 		reporter.AddError(fmt.Sprintf("Could not check minimum node version: %s", err))
+		return
 	}
 	versionInfo := strings.Split(string(stdout), ".")
 	v, err := strconv.Atoi(versionInfo[0][1:])
 	if err != nil {
 		reporter.AddError(fmt.Sprintf("Could not check minimum node version: %s", err))
+		return
 	}
 	if v >= 16 {
 		reporter.AddSuccessfulCheck("Using node version equal or greater than minimum recommended")
@@ -55,11 +71,12 @@ func checkJSAutoInstrumentation(
 	reporter *utils.ComponentReporter,
 	packageJsonPath string,
 ) {
-	// NODE_OPTIONS should be set or that requirement should be added when starting the app
-	if os.Getenv("NODE_OPTIONS") == "--require @opentelemetry/auto-instrumentations-node/register" {
-		reporter.AddSuccessfulCheck("NODE_OPTIONS set correctly")
+	// Check NODE_OPTIONS
+	value, err := env.CheckEnvVar(env.NodeOptions)
+	if err != nil {
+		reporter.AddWarning(fmt.Sprintf("NODE_OPTIONS not set correctly: %s", err))
 	} else {
-		reporter.AddWarning(`NODE_OPTIONS not set. You can set it by running 'export NODE_OPTIONS="--require @opentelemetry/auto-instrumentations-node/register"' or add the same '--require ...' when starting your application`)
+		reporter.AddSuccessfulCheck("NODE_OPTIONS set correctly")
 	}
 
 	// Dependencies for auto instrumentation on package.json
@@ -67,17 +84,23 @@ func checkJSAutoInstrumentation(
 	dat, err := os.ReadFile(filePath)
 	if err != nil {
 		reporter.AddError(fmt.Sprintf("Could not check file %s: %s", filePath, err))
-	} else {
-		if strings.Contains(string(dat), `"@opentelemetry/auto-instrumentations-node"`) {
-			reporter.AddSuccessfulCheck("Dependency @opentelemetry/auto-instrumentations-node added on package.json")
-		} else {
-			reporter.AddError("Dependency @opentelemetry/auto-instrumentations-node missing on package.json. Install the dependency with `npm install @opentelemetry/auto-instrumentations-node`")
-		}
+		return
+	}
 
-		if strings.Contains(string(dat), `"@opentelemetry/api"`) {
-			reporter.AddSuccessfulCheck("Dependency @opentelemetry/api added on package.json")
+	content := string(dat)
+	requiredDeps := []struct {
+		name    string
+		message string
+	}{
+		{`"@opentelemetry/auto-instrumentations-node"`, "Dependency @opentelemetry/auto-instrumentations-node missing on package.json. Install the dependency with `npm install @opentelemetry/auto-instrumentations-node`"},
+		{`"@opentelemetry/api"`, "Dependency @opentelemetry/api missing on package.json. Install the dependency with `npm install @opentelemetry/auto-instrumentations-node`"},
+	}
+
+	for _, dep := range requiredDeps {
+		if strings.Contains(content, dep.name) {
+			reporter.AddSuccessfulCheck(fmt.Sprintf("Dependency %s added on package.json", strings.Trim(dep.name, `"`)))
 		} else {
-			reporter.AddError("Dependency @opentelemetry/api missing on package.json. Install the dependency with `npm install @opentelemetry/auto-instrumentations-node`")
+			reporter.AddError(dep.message)
 		}
 	}
 }
@@ -87,25 +110,38 @@ func checkJSCodeBasedInstrumentation(
 	packageJsonPath string,
 	instrumentationFile string,
 ) {
-	if os.Getenv("NODE_OPTIONS") == "--require @opentelemetry/auto-instrumentations-node/register" {
+	// Check NODE_OPTIONS is not set for auto-instrumentation
+	if env.IsEnvVarSet(env.NodeOptions) {
 		reporter.AddError(`The flag "-manual-instrumentation" was set, but the value of NODE_OPTIONS is set to require auto-instrumentation. Run "unset NODE_OPTIONS" to remove the requirement that can cause a conflict with manual instrumentations`)
 	}
 
-	// Dependencies for auto instrumentation on package.json
+	// Check dependencies in package.json
 	filePath := packageJsonPath + "package.json"
 	packageJsonContent, err := os.ReadFile(filePath)
 	if err != nil {
 		reporter.AddError(fmt.Sprintf("Could not check file %s: %s", filePath, err))
-	} else {
-		if strings.Contains(string(packageJsonContent), `"@opentelemetry/api"`) {
-			reporter.AddSuccessfulCheck("Dependency @opentelemetry/api added on package.json")
-		} else {
-			reporter.AddError("Dependency @opentelemetry/api missing on package.json")
-		}
+		return
+	}
 
-		if strings.Contains(string(packageJsonContent), `"@opentelemetry/exporter-trace-otlp-proto"`) {
-			reporter.AddError(`Dependency @opentelemetry/exporter-trace-otlp-proto added on package.json, which is not supported by Grafana. Switch the dependency to "@opentelemetry/exporter-trace-otlp-http" instead`)
+	content := string(packageJsonContent)
+	requiredDeps := []struct {
+		name    string
+		message string
+	}{
+		{`"@opentelemetry/api"`, "Dependency @opentelemetry/api missing on package.json"},
+	}
+
+	for _, dep := range requiredDeps {
+		if strings.Contains(content, dep.name) {
+			reporter.AddSuccessfulCheck(fmt.Sprintf("Dependency %s added on package.json", strings.Trim(dep.name, `"`)))
+		} else {
+			reporter.AddError(dep.message)
 		}
+	}
+
+	// Check for unsupported dependencies
+	if strings.Contains(content, `"@opentelemetry/exporter-trace-otlp-proto"`) {
+		reporter.AddError(`Dependency @opentelemetry/exporter-trace-otlp-proto added on package.json, which is not supported by Grafana. Switch the dependency to "@opentelemetry/exporter-trace-otlp-http" instead`)
 	}
 
 	// Check Exporter

@@ -1,14 +1,17 @@
 package dotnet
 
 import (
+	"encoding/json"
+	"encoding/xml"
 	"fmt"
-	"maps"
 	"os"
-	"slices"
-	"sort"
+	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 
+	"otel-checker/checks/env"
 	"otel-checker/checks/utils"
 )
 
@@ -17,14 +20,11 @@ const minDotNetVersion = 8
 func CheckDotNetSetup(reporter *utils.ComponentReporter, commands utils.Commands) {
 	checkDotNetVersion(reporter)
 
-	project, err := findAndLoadProject()
+	project, err := checkProject(reporter)
 
 	if err != nil {
-		reporter.AddError(fmt.Sprintf("Failed to find and load project: %s", err))
 		return
 	}
-
-	reporter.AddSuccessfulCheck(fmt.Sprintf("Found project: %s", project.path))
 
 	reportDotNetSupportedInstrumentations(reporter, project.SDK)
 
@@ -36,13 +36,16 @@ func CheckDotNetSetup(reporter *utils.ComponentReporter, commands utils.Commands
 }
 
 func checkDotNetVersion(reporter *utils.ComponentReporter) {
-	versionParts, err := readDotNetVersion()
+	cmd := exec.Command("dotnet", "--version")
+	stdout, err := cmd.Output()
 
 	if err != nil {
 		reporter.AddError(fmt.Sprintf("Could not check .NET version: %s", err))
 		return
 	}
 
+	version := strings.TrimSpace(string(stdout))
+	versionParts := strings.Split(version, ".")
 	if len(versionParts) == 0 {
 		reporter.AddError("Could not parse .NET version: version string is empty")
 		return
@@ -62,98 +65,109 @@ func checkDotNetVersion(reporter *utils.ComponentReporter) {
 	}
 }
 
-type EnvVarValidator func(string, string) error
-
-func checkEnvironmentVariables(
-	reporter *utils.ComponentReporter,
-	requiredVars []string,
-	expectedValues map[string]string,
-	customValidators map[string]EnvVarValidator,
-) bool {
-	// Check for missing required variables
-	missingVars := []string{}
-	for _, envVar := range requiredVars {
-		if _, exists := os.LookupEnv(envVar); !exists {
-			missingVars = append(missingVars, envVar)
-		}
-	}
-
-	if len(missingVars) > 0 {
-		reporter.AddError(fmt.Sprintf("Missing required environment variables: %s", strings.Join(missingVars, ", ")))
-		return false
-	}
-
-	// Check for incorrect values
-	wrongValues := make(map[string]string)
-	for envVar, expectedValue := range expectedValues {
-		envVarValue := os.Getenv(envVar)
-		if envVarValue != expectedValue {
-			wrongValues[envVar] = envVarValue
-		}
-	}
-
-	if len(wrongValues) > 0 {
-		s := make([]string, 0, len(wrongValues))
-		v := slices.Collect(maps.Keys(wrongValues))
-		// Sort keys to make the output deterministic
-		sort.Strings(v)
-		for _, k := range v {
-			s = append(s, fmt.Sprintf("%s: %s", k, wrongValues[k]))
-		}
-		reporter.AddError(fmt.Sprintf("Incorrect values for environment variables: %s", strings.Join(s, ", ")))
-		return false
-	}
-
-	// Run custom validators
-	for envVar, validator := range customValidators {
-		if envVarValue, exists := os.LookupEnv(envVar); exists {
-			if err := validator(envVar, envVarValue); err != nil {
-				reporter.AddError(fmt.Sprintf("Validation failed for %s: %s", envVar, err))
-				return false
-			}
-		}
-	}
-
-	return true
-}
-
 func checkDotNetAutoInstrumentation(reporter *utils.ComponentReporter) {
-	requiredEnvVars := []string{
-		"CORECLR_ENABLE_PROFILING",
-		"CORECLR_PROFILER",
-		"CORECLR_PROFILER_PATH",
-		"OTEL_DOTNET_AUTO_HOME",
+	requiredVars := []env.EnvVar{
+		env.CoreCLREnableProfiling,
+		env.CoreCLRProfiler,
+		env.CoreCLRProfilerPath,
+		env.OtelDotNetAutoHome,
 	}
 
-	expectedValues := map[string]string{
-		"CORECLR_ENABLE_PROFILING": "1",
-		"CORECLR_PROFILER":         "{918728DD-259F-4A6A-AC2B-B85E1B658318}",
+	values, errors := env.CheckEnvVars(requiredVars...)
+	for _, err := range errors {
+		reporter.AddError(err.Error())
 	}
 
-	if success := checkEnvironmentVariables(reporter, requiredEnvVars, expectedValues, nil); success {
+	// Additional validation for profiler GUID
+	if profilerValue, ok := values[env.CoreCLRProfiler.Name]; ok {
+		expectedProfilerValue := "{918728DD-259F-4A6A-AC2B-B85E1B658318}"
+		if profilerValue != expectedProfilerValue {
+			reporter.AddError(fmt.Sprintf("CORECLR_PROFILER has incorrect value. Expected: %s, Got: %s", expectedProfilerValue, profilerValue))
+		}
+	}
+
+	if len(errors) == 0 {
 		reporter.AddSuccessfulCheck("All required environment variables for .NET auto-instrumentation are set with correct values.")
 	}
 }
 
-func checkDotNetCodeBasedInstrumentation(reporter *utils.ComponentReporter) {}
+func checkDotNetCodeBasedInstrumentation(reporter *utils.ComponentReporter) {
+}
 
-func findAndLoadProject() (*CSharpProject, error) {
-	projectPath, err := FindCSharpProject(".")
+func readDotNetDependenciesFromCli() (*NuGetPackageList, error) {
+	cmd := exec.Command("dotnet", "list", "package", "--format", "json", "--include-transitive")
+	stdout, err := cmd.Output()
+
 	if err != nil {
+		return nil, fmt.Errorf("failed to run dotnet list package: %w", err)
+	}
+
+	var deps NuGetPackageList
+	if err := json.Unmarshal(stdout, &deps); err != nil {
+		return nil, fmt.Errorf("failed to parse dependencies JSON: %w", err)
+	}
+
+	return &deps, nil
+}
+
+func findProject() (string, error) {
+	var csprojFiles []string
+
+	err := filepath.WalkDir(".", func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if d.IsDir() && path != "." {
+			return filepath.SkipDir
+		}
+		if filepath.Ext(d.Name()) == ".csproj" {
+			csprojFiles = append(csprojFiles, path)
+		}
+		return nil
+	})
+
+	if err != nil {
+		return "", fmt.Errorf("failed to search for .csproj files: %w", err)
+	}
+
+	switch len(csprojFiles) {
+	case 0:
+		return "", fmt.Errorf("no .csproj files found in current directory")
+	case 1:
+		return csprojFiles[0], nil
+	default:
+		return "", fmt.Errorf("multiple .csproj files found: %s", strings.Join(csprojFiles, ", "))
+	}
+}
+
+func checkProject(reporter *utils.ComponentReporter) (*CSharpProject, error) {
+	project, err := findProject()
+
+	if err != nil {
+		reporter.AddError(fmt.Sprintf("Failed to find project file: %s", err))
 		return nil, err
 	}
 
-	project, err := LoadCSharpProject(projectPath)
+	reporter.AddSuccessfulCheck(fmt.Sprintf("Found project file: %s", project))
+	content, err := os.ReadFile(project)
 
 	if err != nil {
+		reporter.AddError(fmt.Sprintf("Failed to read project file: %s", err))
 		return nil, err
 	}
 
-	return project, nil
+	var csProj CSharpProject
+	if err := xml.Unmarshal(content, &csProj); err != nil {
+		reporter.AddError(fmt.Sprintf("Failed to parse project file: %s", err))
+		return nil, err
+	}
+
+	return &csProj, nil
 }
 
 func reportDotNetSupportedInstrumentations(reporter *utils.ComponentReporter, sdk string) {
-	deps, err := ReadDependenciesFromCli()
+	deps, err := readDotNetDependenciesFromCli()
 
 	if err != nil {
 		reporter.AddError(fmt.Sprintf("Failed to read dependencies: %s", err))
@@ -185,8 +199,7 @@ func reportDotNetSupportedInstrumentations(reporter *utils.ComponentReporter, sd
 
 	for _, project := range deps.Projects {
 		for _, framework := range project.Frameworks {
-			packages := append(framework.TopLevelPackages, framework.TransitivePackages...)
-			for _, pkg := range packages {
+			for _, pkg := range framework.TopLevelPackages {
 				lib, ok := instr[pkg.ID]
 
 				if !ok {
@@ -195,6 +208,7 @@ func reportDotNetSupportedInstrumentations(reporter *utils.ComponentReporter, sd
 
 				reporter.AddSuccessfulCheck(fmt.Sprintf("Found supported instrumentation for %s: %s", pkg.ID, lib))
 			}
+
 		}
 	}
 	if len(deps.Projects) == 0 {
