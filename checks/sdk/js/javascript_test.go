@@ -36,7 +36,7 @@ func TestCheckEnvVars(t *testing.T) {
 		t.Run(tt.Name, func(t *testing.T) {
 			utils.RunEnvVarComponentTest(t, tt, "js",
 				func(reporter utils.Reporter, c *utils.ComponentReporter, language string, components []string) {
-					checkEnvVars(c)
+					checkResourceDetectors(c)
 				})
 		})
 	}

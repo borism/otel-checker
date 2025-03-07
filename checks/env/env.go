@@ -13,6 +13,7 @@ import (
 type EnvVar struct {
 	Name          string
 	Required      bool
+	Recommended   bool
 	DefaultValue  string
 	RequiredValue string
 	Validator     func(value string, language string, reporter *utils.ComponentReporter)
@@ -24,8 +25,8 @@ var (
 	// OpenTelemetry common variables
 	OtelServiceName = EnvVar{
 		Name:        "OTEL_SERVICE_NAME",
-		Required:    false,
-		Description: "Service name for easier identification",
+		Recommended: true,
+		Description: "It's recommended the environment variable OTEL_SERVICE_NAME to be set to your service name, for easier identification",
 	}
 
 	OtelExporterOTLPProtocol = EnvVar{
@@ -60,7 +61,7 @@ var (
 			if language == "python" {
 				tokenStart = "Authorization=Basic%20"
 			}
-			if strings.Contains(os.Getenv("OTEL_EXPORTER_OTLP_HEADERS"), tokenStart) {
+			if strings.Contains(value, tokenStart) {
 				reporter.AddSuccessfulCheck("OTEL_EXPORTER_OTLP_HEADERS is set correctly")
 			} else {
 				reporter.AddError(fmt.Sprintf("OTEL_EXPORTER_OTLP_HEADERS is not set. Value should have '%s...'", tokenStart))
@@ -86,7 +87,7 @@ func exporterEnvVar(key string, name string) EnvVar {
 				if value == "" {
 					reporter.AddSuccessfulCheck(fmt.Sprintf("%s is unset, with a default value of 'otlp'", key))
 				} else {
-					reporter.AddSuccessfulCheck(fmt.Sprintf("The value of %s is set to '%s'", key, value))
+					reporter.AddSuccessfulCheck(fmt.Sprintf("The value of %s is set to '%s' (default value)", key, value))
 				}
 			}
 		},
@@ -100,19 +101,33 @@ func CheckEnvVar(language string, envVar EnvVar, reporter *utils.ComponentReport
 	if envVar.Validator != nil {
 		envVar.Validator(value, language, reporter)
 	} else {
-		if envVar.RequiredValue != "" {
-			if value != envVar.RequiredValue {
-				reporter.AddWarning(fmt.Sprintf("%s is not set", envVar.Name))
-				return
-			}
-		} else {
-			if envVar.Required && value == "" {
-				reporter.AddError(fmt.Sprintf("%s is required", envVar.Name))
-				return
-			}
+		if envVar.RequiredValue != "" && !envVar.Recommended {
+			envVar.Required = true
+		}
+
+		if envVar.Required && checkValue(envVar, value, reporter.AddError) {
+			return
+		}
+		if envVar.Recommended && checkValue(envVar, value, reporter.AddWarning) {
+			return
 		}
 		reporter.AddSuccessfulCheck(fmt.Sprintf("%s is set to '%s'", envVar.Name, value))
 	}
+}
+
+func checkValue(e EnvVar, value string, report func(string)) bool {
+	if e.RequiredValue != "" {
+		if value != e.RequiredValue {
+			report(fmt.Sprintf("%s must be set to '%s'", e.Name, e.RequiredValue))
+			return true
+		}
+	} else {
+		if value == "" {
+			report(e.Description)
+			return true
+		}
+	}
+	return false
 }
 
 // CheckEnvVars validates multiple environment variables and reports the results

@@ -30,7 +30,7 @@ func CheckDotNetSetup(reporter *utils.ComponentReporter, commands utils.Commands
 	if commands.ManualInstrumentation {
 		checkDotNetCodeBasedInstrumentation(reporter)
 	} else {
-		checkDotNetAutoInstrumentation(reporter, commands)
+		checkDotNetAutoInstrumentation(reporter)
 	}
 }
 
@@ -64,8 +64,8 @@ func checkDotNetVersion(reporter *utils.ComponentReporter) {
 	}
 }
 
-func checkDotNetAutoInstrumentation(reporter *utils.ComponentReporter, commands utils.Commands) {
-	env.CheckEnvVars(reporter, commands.Language,
+func checkDotNetAutoInstrumentation(reporter *utils.ComponentReporter) {
+	env.CheckEnvVars(reporter, "dotnet",
 		env.EnvVar{
 			Name:          "CORECLR_ENABLE_PROFILING",
 			RequiredValue: "1",

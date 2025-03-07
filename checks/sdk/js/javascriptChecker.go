@@ -11,7 +11,7 @@ import (
 )
 
 func CheckJSSetup(reporter *utils.ComponentReporter, commands utils.Commands) {
-	checkEnvVars(reporter)
+	checkResourceDetectors(reporter)
 	checkNodeVersion(reporter)
 	if commands.ManualInstrumentation {
 		checkJSCodeBasedInstrumentation(reporter, commands.PackageJsonPath, commands.InstrumentationFile)
@@ -21,7 +21,7 @@ func CheckJSSetup(reporter *utils.ComponentReporter, commands utils.Commands) {
 	checkSupportedLibraries(reporter, commands)
 }
 
-func checkEnvVars(reporter *utils.ComponentReporter) {
+func checkResourceDetectors(reporter *utils.ComponentReporter) {
 	env.CheckEnvVar("", NodeResourceDetectors, reporter)
 }
 
@@ -50,38 +50,24 @@ func checkJSAutoInstrumentation(
 	reporter *utils.ComponentReporter,
 	packageJsonPath string,
 ) {
-	// Check NODE_OPTIONS
-	nodeOptions := os.Getenv(NodeOptions.Name)
-	if nodeOptions == "" {
-		reporter.AddWarning("NODE_OPTIONS not set. You can set it by running 'export NODE_OPTIONS=\"--require @opentelemetry/auto-instrumentations-node/register\"' or add the same '--require ...' when starting your application")
-	} else if nodeOptions == NodeOptions.DefaultValue {
-		reporter.AddSuccessfulCheck("NODE_OPTIONS set correctly")
-	} else {
-		reporter.AddWarning("NODE_OPTIONS not set. You can set it by running 'export NODE_OPTIONS=\"--require @opentelemetry/auto-instrumentations-node/register\"' or add the same '--require ...' when starting your application")
-	}
+	env.CheckEnvVar("", NodeOptions, reporter)
 
 	// Dependencies for auto instrumentation on package.json
 	filePath := packageJsonPath + "package.json"
 	dat, err := os.ReadFile(filePath)
 	if err != nil {
 		reporter.AddError(fmt.Sprintf("Could not check file %s: %s", filePath, err))
-		return
-	}
-
-	content := string(dat)
-	requiredDeps := []struct {
-		name    string
-		message string
-	}{
-		{`"@opentelemetry/auto-instrumentations-node"`, "Dependency @opentelemetry/auto-instrumentations-node missing on package.json. Install the dependency with `npm install @opentelemetry/auto-instrumentations-node`"},
-		{`"@opentelemetry/api"`, "Dependency @opentelemetry/api missing on package.json. Install the dependency with `npm install @opentelemetry/auto-instrumentations-node`"},
-	}
-
-	for _, dep := range requiredDeps {
-		if strings.Contains(content, dep.name) {
-			reporter.AddSuccessfulCheck(fmt.Sprintf("Dependency %s added on package.json", strings.Trim(dep.name, `"`)))
+	} else {
+		if strings.Contains(string(dat), `"@opentelemetry/auto-instrumentations-node"`) {
+			reporter.AddSuccessfulCheck("Dependency @opentelemetry/auto-instrumentations-node added on package.json")
 		} else {
-			reporter.AddError(dep.message)
+			reporter.AddError("Dependency @opentelemetry/auto-instrumentations-node missing on package.json. Install the dependency with `npm install @opentelemetry/auto-instrumentations-node`")
+		}
+
+		if strings.Contains(string(dat), `"@opentelemetry/api"`) {
+			reporter.AddSuccessfulCheck("Dependency @opentelemetry/api added on package.json")
+		} else {
+			reporter.AddError("Dependency @opentelemetry/api missing on package.json. Install the dependency with `npm install @opentelemetry/auto-instrumentations-node`")
 		}
 	}
 }
@@ -91,12 +77,11 @@ func checkJSCodeBasedInstrumentation(
 	packageJsonPath string,
 	instrumentationFile string,
 ) {
-	// Check NODE_OPTIONS is not set for auto-instrumentation
-	if env.IsEnvVarSet(NodeOptions) {
+	if os.Getenv("NODE_OPTIONS") == "--require @opentelemetry/auto-instrumentations-node/register" {
 		reporter.AddError(`The flag "-manual-instrumentation" was set, but the value of NODE_OPTIONS is set to require auto-instrumentation. Run "unset NODE_OPTIONS" to remove the requirement that can cause a conflict with manual instrumentations`)
 	}
 
-	// Check dependencies in package.json
+	// Dependencies for auto instrumentation on package.json
 	filePath := packageJsonPath + "package.json"
 	packageJsonContent, err := os.ReadFile(filePath)
 	if err != nil {
