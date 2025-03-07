@@ -14,7 +14,7 @@ type EnvVar struct {
 	Name         string
 	Required     bool
 	DefaultValue string
-	Validator    func(string) error
+	Validator    func(value string, language string) error
 	Description  string
 }
 
@@ -31,7 +31,7 @@ var (
 		Name:         "OTEL_EXPORTER_OTLP_PROTOCOL",
 		Required:     true,
 		DefaultValue: "http/protobuf",
-		Validator: func(value string) error {
+		Validator: func(value string, language string) error {
 			if value != "http/protobuf" {
 				return fmt.Errorf("must be set to 'http/protobuf'")
 			}
@@ -43,7 +43,7 @@ var (
 	OtelExporterOTLPEndpoint = EnvVar{
 		Name:     "OTEL_EXPORTER_OTLP_ENDPOINT",
 		Required: true,
-		Validator: func(value string) error {
+		Validator: func(value string, language string) error {
 			match, _ := regexp.MatchString("https:\\/\\/.+\\.grafana\\.net\\/otlp", value)
 			if !match {
 				if strings.Contains(value, "localhost") {
@@ -59,12 +59,15 @@ var (
 	OtelExporterOTLPHeaders = EnvVar{
 		Name:     "OTEL_EXPORTER_OTLP_HEADERS",
 		Required: true,
-		Validator: func(value string) error {
+		Validator: func(value string, language string) error {
 			tokenStart := "Authorization=Basic "
-			if !strings.Contains(value, tokenStart) {
-				return fmt.Errorf("must contain '%s...'", tokenStart)
+			if language == "python" {
+				tokenStart = "Authorization=Basic%20"
 			}
-			return nil
+			if strings.HasPrefix(os.Getenv("OTEL_EXPORTER_OTLP_HEADERS"), tokenStart) {
+				return nil
+			}
+			return fmt.Errorf("must contain '%s...'", tokenStart)
 		},
 		Description: "OTLP exporter headers",
 	}
@@ -74,7 +77,7 @@ var (
 		Name:         "OTEL_METRICS_EXPORTER",
 		Required:     false,
 		DefaultValue: "otlp",
-		Validator: func(value string) error {
+		Validator: func(value string, language string) error {
 			if value == "none" {
 				return fmt.Errorf("cannot be 'none'. Change to 'otlp' or leave unset")
 			}
@@ -87,7 +90,7 @@ var (
 		Name:         "OTEL_TRACES_EXPORTER",
 		Required:     false,
 		DefaultValue: "otlp",
-		Validator: func(value string) error {
+		Validator: func(value string, language string) error {
 			if value == "none" {
 				return fmt.Errorf("cannot be 'none'. Change to 'otlp' or leave unset")
 			}
@@ -100,7 +103,7 @@ var (
 		Name:         "OTEL_LOGS_EXPORTER",
 		Required:     false,
 		DefaultValue: "otlp",
-		Validator: func(value string) error {
+		Validator: func(value string, language string) error {
 			if value == "none" {
 				return fmt.Errorf("cannot be 'none'. Change to 'otlp' or leave unset")
 			}
@@ -111,7 +114,7 @@ var (
 )
 
 // CheckEnvVar validates an environment variable against its configuration and reports the result
-func CheckEnvVar(envVar EnvVar, reporter *utils.ComponentReporter) {
+func CheckEnvVar(language string, envVar EnvVar, reporter *utils.ComponentReporter) {
 	value := os.Getenv(envVar.Name)
 
 	if envVar.Required && value == "" {
@@ -124,7 +127,7 @@ func CheckEnvVar(envVar EnvVar, reporter *utils.ComponentReporter) {
 	}
 
 	if envVar.Validator != nil && value != "" {
-		if err := envVar.Validator(value); err != nil {
+		if err := envVar.Validator(value, language); err != nil {
 			if envVar.Required {
 				reporter.AddError(fmt.Sprintf("%s: %s", envVar.Name, err))
 			} else {
@@ -143,9 +146,9 @@ func CheckEnvVar(envVar EnvVar, reporter *utils.ComponentReporter) {
 }
 
 // CheckEnvVars validates multiple environment variables and reports the results
-func CheckEnvVars(reporter *utils.ComponentReporter, envVars ...EnvVar) {
+func CheckEnvVars(reporter *utils.ComponentReporter, language string, envVars ...EnvVar) {
 	for _, envVar := range envVars {
-		CheckEnvVar(envVar, reporter)
+		CheckEnvVar(language, envVar, reporter)
 	}
 }
 

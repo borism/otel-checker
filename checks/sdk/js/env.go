@@ -18,7 +18,7 @@ var (
 	NodeResourceDetectors = env.EnvVar{
 		Name:     "OTEL_NODE_RESOURCE_DETECTORS",
 		Required: false,
-		Validator: func(value string) error {
+		Validator: func(value string, language string) error {
 			requiredDetectors := []string{"env", "host", "os", "serviceinstance"}
 			for _, detector := range requiredDetectors {
 				if !strings.Contains(value, detector) {

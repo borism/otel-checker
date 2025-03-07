@@ -22,7 +22,7 @@ func CheckJSSetup(reporter *utils.ComponentReporter, commands utils.Commands) {
 }
 
 func checkEnvVars(reporter *utils.ComponentReporter) {
-	env.CheckEnvVar(NodeResourceDetectors, reporter)
+	env.CheckEnvVar("", NodeResourceDetectors, reporter)
 }
 
 func checkNodeVersion(reporter *utils.ComponentReporter) {

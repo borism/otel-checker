@@ -27,7 +27,7 @@ func checkEnvVarsGrafana(reporter utils.Reporter, grafana *utils.ComponentReport
 		env.OtelLogsExporter,
 	}
 
-	env.CheckEnvVars(grafana, commonVars...)
+	env.CheckEnvVars(grafana, language, commonVars...)
 
 	// Check Beyla specific variables if component is enabled
 	if slices.Contains(components, "beyla") {
@@ -40,7 +40,7 @@ func checkEnvVarsGrafana(reporter utils.Reporter, grafana *utils.ComponentReport
 			beyla.GrafanaCloudAPIKey,
 		}
 
-		env.CheckEnvVars(b, beylaVars...)
+		env.CheckEnvVars(b, language, beylaVars...)
 	}
 }
 

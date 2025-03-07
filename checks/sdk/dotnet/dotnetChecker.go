@@ -30,7 +30,7 @@ func CheckDotNetSetup(reporter *utils.ComponentReporter, commands utils.Commands
 	if commands.ManualInstrumentation {
 		checkDotNetCodeBasedInstrumentation(reporter)
 	} else {
-		checkDotNetAutoInstrumentation(reporter)
+		checkDotNetAutoInstrumentation(reporter, commands)
 	}
 }
 
@@ -64,12 +64,12 @@ func checkDotNetVersion(reporter *utils.ComponentReporter) {
 	}
 }
 
-func checkDotNetAutoInstrumentation(reporter *utils.ComponentReporter) {
-	requiredVars := []env.EnvVar{
+func checkDotNetAutoInstrumentation(reporter *utils.ComponentReporter, commands utils.Commands) {
+	env.CheckEnvVars(reporter, commands.Language,
 		env.EnvVar{
 			Name:     "CORECLR_ENABLE_PROFILING",
 			Required: true,
-			Validator: func(value string) error {
+			Validator: func(value string, language string) error {
 				if value != "1" {
 					return fmt.Errorf("must be set to '1'")
 				}
@@ -79,7 +79,7 @@ func checkDotNetAutoInstrumentation(reporter *utils.ComponentReporter) {
 		env.EnvVar{
 			Name:     "CORECLR_PROFILER",
 			Required: true,
-			Validator: func(value string) error {
+			Validator: func(value string, language string) error {
 				expectedValue := "{918728DD-259F-4A6A-AC2B-B85E1B658318}"
 				if value != expectedValue {
 					return fmt.Errorf("must be set to '%s'", expectedValue)
@@ -94,29 +94,7 @@ func checkDotNetAutoInstrumentation(reporter *utils.ComponentReporter) {
 		env.EnvVar{
 			Name:     "OTEL_DOTNET_AUTO_HOME",
 			Required: true,
-		},
-	}
-
-	allValid := true
-	for _, envVar := range requiredVars {
-		value := os.Getenv(envVar.Name)
-		if value == "" {
-			reporter.AddError(fmt.Sprintf("%s is required", envVar.Name))
-			allValid = false
-			continue
-		}
-
-		if envVar.Validator != nil {
-			if err := envVar.Validator(value); err != nil {
-				reporter.AddError(fmt.Sprintf("%s: %s", envVar.Name, err))
-				allValid = false
-			}
-		}
-	}
-
-	if allValid {
-		reporter.AddSuccessfulCheck("All required environment variables for .NET auto-instrumentation are set with correct values.")
-	}
+		})
 }
 
 func checkDotNetCodeBasedInstrumentation(reporter *utils.ComponentReporter) {
