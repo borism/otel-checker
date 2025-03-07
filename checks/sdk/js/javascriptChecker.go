@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"otel-checker/checks/env"
 	"otel-checker/checks/utils"
 	"strconv"
 	"strings"
 )
 
 func CheckJSSetup(reporter *utils.ComponentReporter, commands utils.Commands) {
-	checkEnvVars(reporter)
+	checkResourceDetectors(reporter)
 	checkNodeVersion(reporter)
 	if commands.ManualInstrumentation {
 		checkJSCodeBasedInstrumentation(reporter, commands.PackageJsonPath, commands.InstrumentationFile)
@@ -20,16 +21,22 @@ func CheckJSSetup(reporter *utils.ComponentReporter, commands utils.Commands) {
 	checkSupportedLibraries(reporter, commands)
 }
 
-func checkEnvVars(reporter *utils.ComponentReporter) {
-	if os.Getenv("OTEL_NODE_RESOURCE_DETECTORS") == "" ||
-		!strings.Contains(os.Getenv("OTEL_NODE_RESOURCE_DETECTORS"), "env") ||
-		!strings.Contains(os.Getenv("OTEL_NODE_RESOURCE_DETECTORS"), "host") ||
-		!strings.Contains(os.Getenv("OTEL_NODE_RESOURCE_DETECTORS"), "os") ||
-		!strings.Contains(os.Getenv("OTEL_NODE_RESOURCE_DETECTORS"), "serviceinstance") {
-		reporter.AddWarning("It's recommended the environment variable OTEL_NODE_RESOURCE_DETECTORS to be set to at least `env,host,os,serviceinstance`")
-	} else {
-		reporter.AddSuccessfulCheck("OTEL_NODE_RESOURCE_DETECTORS has recommended values")
-	}
+func checkResourceDetectors(reporter *utils.ComponentReporter) {
+	env.CheckEnvVar("", env.EnvVar{
+		Name: "OTEL_NODE_RESOURCE_DETECTORS",
+		Validator: func(value string, language string, reporter *utils.ComponentReporter) {
+			if value == "" ||
+				!strings.Contains(value, "env") ||
+				!strings.Contains(value, "host") ||
+				!strings.Contains(value, "os") ||
+				!strings.Contains(value, "serviceinstance") {
+				reporter.AddWarning("It's recommended the environment variable OTEL_NODE_RESOURCE_DETECTORS to be set to at least `env,host,os,serviceinstance`")
+			} else {
+				reporter.AddSuccessfulCheck("OTEL_NODE_RESOURCE_DETECTORS has recommended values")
+			}
+		},
+		Description: "at least `env,host,os,serviceinstance`",
+	}, reporter)
 }
 
 func checkNodeVersion(reporter *utils.ComponentReporter) {
@@ -38,11 +45,13 @@ func checkNodeVersion(reporter *utils.ComponentReporter) {
 
 	if err != nil {
 		reporter.AddError(fmt.Sprintf("Could not check minimum node version: %s", err))
+		return
 	}
 	versionInfo := strings.Split(string(stdout), ".")
 	v, err := strconv.Atoi(versionInfo[0][1:])
 	if err != nil {
 		reporter.AddError(fmt.Sprintf("Could not check minimum node version: %s", err))
+		return
 	}
 	if v >= 16 {
 		reporter.AddSuccessfulCheck("Using node version equal or greater than minimum recommended")
@@ -55,12 +64,7 @@ func checkJSAutoInstrumentation(
 	reporter *utils.ComponentReporter,
 	packageJsonPath string,
 ) {
-	// NODE_OPTIONS should be set or that requirement should be added when starting the app
-	if os.Getenv("NODE_OPTIONS") == "--require @opentelemetry/auto-instrumentations-node/register" {
-		reporter.AddSuccessfulCheck("NODE_OPTIONS set correctly")
-	} else {
-		reporter.AddWarning(`NODE_OPTIONS not set. You can set it by running 'export NODE_OPTIONS="--require @opentelemetry/auto-instrumentations-node/register"' or add the same '--require ...' when starting your application`)
-	}
+	checkAutoInstrumentationNodeOptions(reporter)
 
 	// Dependencies for auto instrumentation on package.json
 	filePath := packageJsonPath + "package.json"
@@ -80,6 +84,15 @@ func checkJSAutoInstrumentation(
 			reporter.AddError("Dependency @opentelemetry/api missing on package.json. Install the dependency with `npm install @opentelemetry/auto-instrumentations-node`")
 		}
 	}
+}
+
+func checkAutoInstrumentationNodeOptions(reporter *utils.ComponentReporter) {
+	env.CheckEnvVar("", env.EnvVar{
+		Name:          "NODE_OPTIONS",
+		Recommended:   true,
+		RequiredValue: "--require @opentelemetry/auto-instrumentations-node/register",
+		Message:       `NODE_OPTIONS not set. You can set it by running 'export NODE_OPTIONS="--require @opentelemetry/auto-instrumentations-node/register"' or add the same '--require ...' when starting your application`,
+	}, reporter)
 }
 
 func checkJSCodeBasedInstrumentation(

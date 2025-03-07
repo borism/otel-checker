@@ -2,14 +2,9 @@ package dotnet
 
 import (
 	"fmt"
-	"maps"
-	"os"
-	"slices"
-	"sort"
-	"strconv"
-	"strings"
-
+	"otel-checker/checks/env"
 	"otel-checker/checks/utils"
+	"strconv"
 )
 
 const minDotNetVersion = 8
@@ -62,77 +57,24 @@ func checkDotNetVersion(reporter *utils.ComponentReporter) {
 	}
 }
 
-type EnvVarValidator func(string, string) error
-
-func checkEnvironmentVariables(
-	reporter *utils.ComponentReporter,
-	requiredVars []string,
-	expectedValues map[string]string,
-	customValidators map[string]EnvVarValidator,
-) bool {
-	// Check for missing required variables
-	missingVars := []string{}
-	for _, envVar := range requiredVars {
-		if _, exists := os.LookupEnv(envVar); !exists {
-			missingVars = append(missingVars, envVar)
-		}
-	}
-
-	if len(missingVars) > 0 {
-		reporter.AddError(fmt.Sprintf("Missing required environment variables: %s", strings.Join(missingVars, ", ")))
-		return false
-	}
-
-	// Check for incorrect values
-	wrongValues := make(map[string]string)
-	for envVar, expectedValue := range expectedValues {
-		envVarValue := os.Getenv(envVar)
-		if envVarValue != expectedValue {
-			wrongValues[envVar] = envVarValue
-		}
-	}
-
-	if len(wrongValues) > 0 {
-		s := make([]string, 0, len(wrongValues))
-		v := slices.Collect(maps.Keys(wrongValues))
-		// Sort keys to make the output deterministic
-		sort.Strings(v)
-		for _, k := range v {
-			s = append(s, fmt.Sprintf("%s: %s", k, wrongValues[k]))
-		}
-		reporter.AddError(fmt.Sprintf("Incorrect values for environment variables: %s", strings.Join(s, ", ")))
-		return false
-	}
-
-	// Run custom validators
-	for envVar, validator := range customValidators {
-		if envVarValue, exists := os.LookupEnv(envVar); exists {
-			if err := validator(envVar, envVarValue); err != nil {
-				reporter.AddError(fmt.Sprintf("Validation failed for %s: %s", envVar, err))
-				return false
-			}
-		}
-	}
-
-	return true
-}
-
 func checkDotNetAutoInstrumentation(reporter *utils.ComponentReporter) {
-	requiredEnvVars := []string{
-		"CORECLR_ENABLE_PROFILING",
-		"CORECLR_PROFILER",
-		"CORECLR_PROFILER_PATH",
-		"OTEL_DOTNET_AUTO_HOME",
-	}
-
-	expectedValues := map[string]string{
-		"CORECLR_ENABLE_PROFILING": "1",
-		"CORECLR_PROFILER":         "{918728DD-259F-4A6A-AC2B-B85E1B658318}",
-	}
-
-	if success := checkEnvironmentVariables(reporter, requiredEnvVars, expectedValues, nil); success {
-		reporter.AddSuccessfulCheck("All required environment variables for .NET auto-instrumentation are set with correct values.")
-	}
+	env.CheckEnvVars(reporter, "dotnet",
+		env.EnvVar{
+			Name:          "CORECLR_ENABLE_PROFILING",
+			RequiredValue: "1",
+		},
+		env.EnvVar{
+			Name:          "CORECLR_PROFILER",
+			RequiredValue: "{918728DD-259F-4A6A-AC2B-B85E1B658318}",
+		},
+		env.EnvVar{
+			Name:     "CORECLR_PROFILER_PATH",
+			Required: true,
+		},
+		env.EnvVar{
+			Name:     "OTEL_DOTNET_AUTO_HOME",
+			Required: true,
+		})
 }
 
 func checkDotNetCodeBasedInstrumentation(reporter *utils.ComponentReporter) {}
