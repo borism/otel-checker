@@ -18,6 +18,7 @@ type EnvVar struct {
 	RequiredValue string
 	Validator     func(value string, language string, reporter *utils.ComponentReporter)
 	Description   string
+	Message       string
 }
 
 // Common environment variables used across the project
@@ -26,13 +27,14 @@ var (
 	OtelServiceName = EnvVar{
 		Name:        "OTEL_SERVICE_NAME",
 		Recommended: true,
-		Description: "It's recommended the environment variable OTEL_SERVICE_NAME to be set to your service name, for easier identification",
+		Message:     "It's recommended the environment variable OTEL_SERVICE_NAME to be set to your service name, for easier identification",
 	}
 
 	OtelExporterOTLPProtocol = EnvVar{
 		Name:          "OTEL_EXPORTER_OTLP_PROTOCOL",
 		RequiredValue: "http/protobuf",
-		Description:   "OTEL_EXPORTER_OTLP_PROTOCOL must be set to 'http/protobuf'",
+		Description:   "Protocol for OTLP exporter",
+		Message:       "OTEL_EXPORTER_OTLP_PROTOCOL must be set to 'http/protobuf'",
 	}
 
 	OtelExporterOTLPEndpoint = EnvVar{
@@ -118,16 +120,16 @@ func CheckEnvVar(language string, envVar EnvVar, reporter *utils.ComponentReport
 func checkValue(e EnvVar, value string, report func(string)) bool {
 	if e.RequiredValue != "" {
 		if value != e.RequiredValue {
-			if e.Description == "" {
+			if e.Message == "" {
 				report(fmt.Sprintf("%s must be set to '%s'", e.Name, e.RequiredValue))
 			} else {
-				report(e.Description)
+				report(e.Message)
 			}
 			return true
 		}
 	} else {
 		if value == "" {
-			description := e.Description
+			description := e.Message
 			if description == "" {
 				description = fmt.Sprintf("%s is not set", e.Name)
 			}
