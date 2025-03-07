@@ -22,11 +22,11 @@ var (
 			requiredDetectors := []string{"env", "host", "os", "serviceinstance"}
 			for _, detector := range requiredDetectors {
 				if !strings.Contains(value, detector) {
-					return fmt.Errorf("should include '%s'", detector)
+					return fmt.Errorf("It's recommended the environment variable OTEL_NODE_RESOURCE_DETECTORS to be set to at least `env,host,os,serviceinstance`")
 				}
 			}
 			return nil
 		},
-		Description: "Node resource detectors",
+		Description: "at least `env,host,os,serviceinstance`",
 	}
 )

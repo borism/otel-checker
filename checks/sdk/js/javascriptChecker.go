@@ -51,7 +51,14 @@ func checkJSAutoInstrumentation(
 	packageJsonPath string,
 ) {
 	// Check NODE_OPTIONS
-	env.CheckEnvVar(NodeOptions, reporter)
+	nodeOptions := os.Getenv(NodeOptions.Name)
+	if nodeOptions == "" {
+		reporter.AddWarning("NODE_OPTIONS not set. You can set it by running 'export NODE_OPTIONS=\"--require @opentelemetry/auto-instrumentations-node/register\"' or add the same '--require ...' when starting your application")
+	} else if nodeOptions == NodeOptions.DefaultValue {
+		reporter.AddSuccessfulCheck("NODE_OPTIONS set correctly")
+	} else {
+		reporter.AddWarning("NODE_OPTIONS not set. You can set it by running 'export NODE_OPTIONS=\"--require @opentelemetry/auto-instrumentations-node/register\"' or add the same '--require ...' when starting your application")
+	}
 
 	// Dependencies for auto instrumentation on package.json
 	filePath := packageJsonPath + "package.json"

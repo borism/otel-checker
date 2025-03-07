@@ -26,7 +26,9 @@ func TestCheckDotNetAutoInstrumentation(t *testing.T) {
 			},
 			Language: "csharp",
 			ExpectedErrors: []string{
-				"dotnet: Missing required environment variables: CORECLR_PROFILER, CORECLR_PROFILER_PATH, OTEL_DOTNET_AUTO_HOME",
+				"dotnet: CORECLR_PROFILER is required",
+				"dotnet: CORECLR_PROFILER_PATH is required",
+				"dotnet: OTEL_DOTNET_AUTO_HOME is required",
 			},
 		},
 		{
@@ -39,7 +41,8 @@ func TestCheckDotNetAutoInstrumentation(t *testing.T) {
 			},
 			Language: "csharp",
 			ExpectedErrors: []string{
-				"dotnet: Incorrect values for environment variables: CORECLR_ENABLE_PROFILING: 0, CORECLR_PROFILER: wrong-guid",
+				"dotnet: CORECLR_ENABLE_PROFILING: must be set to '1'",
+				"dotnet: CORECLR_PROFILER: must be set to '{918728DD-259F-4A6A-AC2B-B85E1B658318}'",
 			},
 		},
 	}
