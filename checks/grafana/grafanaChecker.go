@@ -45,13 +45,13 @@ func checkEnvVarsGrafana(reporter utils.Reporter, grafana *utils.ComponentReport
 }
 
 func checkAuth(reporter *utils.ComponentReporter) {
-	endpoint := env.GetEnvVar(env.OtelExporterOTLPEndpoint)
+	endpoint := env.GetValue(env.OtelExporterOTLPEndpoint)
 	if strings.Contains(endpoint, "localhost") {
 		reporter.AddWarning("Credentials not checked, since OTEL_EXPORTER_OTLP_ENDPOINT is using localhost")
 		return
 	}
 
-	headers := env.GetEnvVar(env.OtelExporterOTLPHeaders)
+	headers := env.GetValue(env.OtelExporterOTLPHeaders)
 	if endpoint == "" || headers == "" {
 		reporter.AddWarning("Credentials not checked, since both environment variables OTEL_EXPORTER_OTLP_ENDPOINT and OTEL_EXPORTER_OTLP_HEADERS need to be set for this check")
 		return

@@ -11,11 +11,12 @@ import (
 
 // EnvVar represents an environment variable configuration
 type EnvVar struct {
-	Name         string
-	Required     bool
-	DefaultValue string
-	Validator    func(value string, language string) error
-	Description  string
+	Name          string
+	Required      bool
+	DefaultValue  string
+	RequiredValue string
+	Validator     func(value string, language string, reporter *utils.ComponentReporter)
+	Description   string
 }
 
 // Common environment variables used across the project
@@ -28,30 +29,25 @@ var (
 	}
 
 	OtelExporterOTLPProtocol = EnvVar{
-		Name:         "OTEL_EXPORTER_OTLP_PROTOCOL",
-		Required:     true,
-		DefaultValue: "http/protobuf",
-		Validator: func(value string, language string) error {
-			if value != "http/protobuf" {
-				return fmt.Errorf("must be set to 'http/protobuf'")
-			}
-			return nil
-		},
-		Description: "Protocol for OTLP exporter",
+		Name:          "OTEL_EXPORTER_OTLP_PROTOCOL",
+		RequiredValue: "http/protobuf",
+		Description:   "Protocol for OTLP exporter",
 	}
 
 	OtelExporterOTLPEndpoint = EnvVar{
 		Name:     "OTEL_EXPORTER_OTLP_ENDPOINT",
 		Required: true,
-		Validator: func(value string, language string) error {
-			match, _ := regexp.MatchString("https:\\/\\/.+\\.grafana\\.net\\/otlp", value)
-			if !match {
+		Validator: func(value string, language string, reporter *utils.ComponentReporter) {
+			match, _ := regexp.MatchString("https://.+\\.grafana\\.net/otlp", value)
+			if match {
+				reporter.AddSuccessfulCheck("OTEL_EXPORTER_OTLP_ENDPOINT set in the format similar to https://otlp-gateway-prod-us-east-0.grafana.net/otlp")
+			} else {
 				if strings.Contains(value, "localhost") {
-					return fmt.Errorf("endpoint is set to localhost. Update to a Grafana endpoint similar to https://otlp-gateway-prod-us-east-0.grafana.net/otlp")
+					reporter.AddWarning("OTEL_EXPORTER_OTLP_ENDPOINT is set to localhost. Update to a Grafana endpoint similar to https://otlp-gateway-prod-us-east-0.grafana.net/otlp to be able to send telemetry to your Grafana Cloud instance")
+				} else {
+					reporter.AddError("OTEL_EXPORTER_OTLP_ENDPOINT is not set in the format similar to https://otlp-gateway-prod-us-east-0.grafana.net/otlp")
 				}
-				return fmt.Errorf("must be set in the format similar to https://otlp-gateway-prod-us-east-0.grafana.net/otlp")
 			}
-			return nil
 		},
 		Description: "OTLP exporter endpoint",
 	}
@@ -59,90 +55,64 @@ var (
 	OtelExporterOTLPHeaders = EnvVar{
 		Name:     "OTEL_EXPORTER_OTLP_HEADERS",
 		Required: true,
-		Validator: func(value string, language string) error {
+		Validator: func(value string, language string, reporter *utils.ComponentReporter) {
 			tokenStart := "Authorization=Basic "
 			if language == "python" {
 				tokenStart = "Authorization=Basic%20"
 			}
-			if strings.HasPrefix(os.Getenv("OTEL_EXPORTER_OTLP_HEADERS"), tokenStart) {
-				return nil
+			if strings.Contains(os.Getenv("OTEL_EXPORTER_OTLP_HEADERS"), tokenStart) {
+				reporter.AddSuccessfulCheck("OTEL_EXPORTER_OTLP_HEADERS is set correctly")
+			} else {
+				reporter.AddError(fmt.Sprintf("OTEL_EXPORTER_OTLP_HEADERS is not set. Value should have '%s...'", tokenStart))
 			}
-			return fmt.Errorf("must contain '%s...'", tokenStart)
 		},
 		Description: "OTLP exporter headers",
 	}
 
-	// Metrics, Traces, and Logs exporters
-	OtelMetricsExporter = EnvVar{
-		Name:         "OTEL_METRICS_EXPORTER",
-		Required:     false,
-		DefaultValue: "otlp",
-		Validator: func(value string, language string) error {
-			if value == "none" {
-				return fmt.Errorf("cannot be 'none'. Change to 'otlp' or leave unset")
-			}
-			return nil
-		},
-		Description: "Metrics exporter configuration",
-	}
-
-	OtelTracesExporter = EnvVar{
-		Name:         "OTEL_TRACES_EXPORTER",
-		Required:     false,
-		DefaultValue: "otlp",
-		Validator: func(value string, language string) error {
-			if value == "none" {
-				return fmt.Errorf("cannot be 'none'. Change to 'otlp' or leave unset")
-			}
-			return nil
-		},
-		Description: "Traces exporter configuration",
-	}
-
-	OtelLogsExporter = EnvVar{
-		Name:         "OTEL_LOGS_EXPORTER",
-		Required:     false,
-		DefaultValue: "otlp",
-		Validator: func(value string, language string) error {
-			if value == "none" {
-				return fmt.Errorf("cannot be 'none'. Change to 'otlp' or leave unset")
-			}
-			return nil
-		},
-		Description: "Logs exporter configuration",
-	}
+	OtelMetricsExporter = exporterEnvVar("OTEL_METRICS_EXPORTER", "Metrics")
+	OtelTracesExporter  = exporterEnvVar("OTEL_TRACES_EXPORTER", "Traces")
+	OtelLogsExporter    = exporterEnvVar("OTEL_LOGS_EXPORTER", "Logs")
 )
+
+func exporterEnvVar(key string, name string) EnvVar {
+	return EnvVar{
+		Name:         key,
+		Required:     false,
+		DefaultValue: "otlp",
+		Validator: func(value string, language string, reporter *utils.ComponentReporter) {
+			if value == "none" {
+				reporter.AddError(fmt.Sprintf("The value of %s cannot be 'none'. Change the value to 'otlp' or leave it unset", key))
+			} else {
+				if value == "" {
+					reporter.AddSuccessfulCheck(fmt.Sprintf("%s is unset, with a default value of 'otlp'", key))
+				} else {
+					reporter.AddSuccessfulCheck(fmt.Sprintf("The value of %s is set to '%s'", key, value))
+				}
+			}
+		},
+		Description: name + " exporter configuration",
+	}
+}
 
 // CheckEnvVar validates an environment variable against its configuration and reports the result
 func CheckEnvVar(language string, envVar EnvVar, reporter *utils.ComponentReporter) {
-	value := os.Getenv(envVar.Name)
-
-	if envVar.Required && value == "" {
-		reporter.AddError(fmt.Sprintf("%s is required", envVar.Name))
-		return
-	}
-
-	if value == "" && envVar.DefaultValue != "" {
-		value = envVar.DefaultValue
-	}
-
-	if envVar.Validator != nil && value != "" {
-		if err := envVar.Validator(value, language); err != nil {
-			if envVar.Required {
-				reporter.AddError(fmt.Sprintf("%s: %s", envVar.Name, err))
-			} else {
-				reporter.AddWarning(fmt.Sprintf("%s: %s", envVar.Name, err))
+	value := GetValue(envVar)
+	if envVar.Validator != nil {
+		envVar.Validator(value, language, reporter)
+	} else {
+		if envVar.RequiredValue != "" {
+			if value != envVar.RequiredValue {
+				reporter.AddWarning(fmt.Sprintf("%s is not set", envVar.Name))
+				return
 			}
-			return
+		} else {
+			if envVar.Required && value == "" {
+				reporter.AddError(fmt.Sprintf("%s is required", envVar.Name))
+				return
+			}
 		}
+		reporter.AddSuccessfulCheck(fmt.Sprintf("%s is set to '%s'", envVar.Name, value))
 	}
-
-	if !envVar.Required && value == "" {
-		reporter.AddWarning(fmt.Sprintf("%s is not set", envVar.Name))
-		return
-	}
-
-	reporter.AddSuccessfulCheck(fmt.Sprintf("%s is set correctly", envVar.Name))
 }
 
 // CheckEnvVars validates multiple environment variables and reports the results
@@ -152,8 +122,8 @@ func CheckEnvVars(reporter *utils.ComponentReporter, language string, envVars ..
 	}
 }
 
-// GetEnvVar returns the value of an environment variable with its default value if not set
-func GetEnvVar(envVar EnvVar) string {
+// GetValue returns the value of an environment variable with its default value if not set
+func GetValue(envVar EnvVar) string {
 	value := os.Getenv(envVar.Name)
 	if value == "" && envVar.DefaultValue != "" {
 		return envVar.DefaultValue

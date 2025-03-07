@@ -14,14 +14,12 @@ func TestCheckEnvVarsGrafana(t *testing.T) {
 			EnvVars:  correct,
 			Language: "python",
 			ExpectedChecks: []string{
-				"Grafana Cloud: OTEL_SERVICE_NAME is set",
-				"Grafana Cloud: OTEL_EXPORTER_OTLP_PROTOCOL set to 'http/protobuf'",
+				"Grafana Cloud: OTEL_SERVICE_NAME is set to 'test-service'",
+				"Grafana Cloud: OTEL_EXPORTER_OTLP_PROTOCOL is set to 'http/protobuf'", "Grafana Cloud: OTEL_EXPORTER_OTLP_ENDPOINT set in the format similar to https://otlp-gateway-prod-us-east-0.grafana.net/otlp",
+				"Grafana Cloud: OTEL_EXPORTER_OTLP_HEADERS is set correctly",
 				"Grafana Cloud: The value of OTEL_METRICS_EXPORTER is set to 'otlp'",
 				"Grafana Cloud: The value of OTEL_TRACES_EXPORTER is set to 'otlp'",
-				"Grafana Cloud: The value of OTEL_LOGS_EXPORTER is set to 'otlp'",
-				"Grafana Cloud: OTEL_EXPORTER_OTLP_ENDPOINT set in the format similar to https://otlp-gateway-prod-us-east-0.grafana.net/otlp",
-				"Grafana Cloud: OTEL_EXPORTER_OTLP_HEADERS is set correctly",
-			},
+				"Grafana Cloud: The value of OTEL_LOGS_EXPORTER is set to 'otlp'"},
 		},
 		{
 			Name: "missing service name",

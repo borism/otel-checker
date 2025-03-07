@@ -67,25 +67,12 @@ func checkDotNetVersion(reporter *utils.ComponentReporter) {
 func checkDotNetAutoInstrumentation(reporter *utils.ComponentReporter, commands utils.Commands) {
 	env.CheckEnvVars(reporter, commands.Language,
 		env.EnvVar{
-			Name:     "CORECLR_ENABLE_PROFILING",
-			Required: true,
-			Validator: func(value string, language string) error {
-				if value != "1" {
-					return fmt.Errorf("must be set to '1'")
-				}
-				return nil
-			},
+			Name:          "CORECLR_ENABLE_PROFILING",
+			RequiredValue: "1",
 		},
 		env.EnvVar{
-			Name:     "CORECLR_PROFILER",
-			Required: true,
-			Validator: func(value string, language string) error {
-				expectedValue := "{918728DD-259F-4A6A-AC2B-B85E1B658318}"
-				if value != expectedValue {
-					return fmt.Errorf("must be set to '%s'", expectedValue)
-				}
-				return nil
-			},
+			Name:          "CORECLR_PROFILER",
+			RequiredValue: "{918728DD-259F-4A6A-AC2B-B85E1B658318}",
 		},
 		env.EnvVar{
 			Name:     "CORECLR_PROFILER_PATH",
