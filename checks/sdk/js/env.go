@@ -10,6 +10,7 @@ import (
 var (
 	NodeOptions = env.EnvVar{
 		Name:          "NODE_OPTIONS",
+		Recommended:   true,
 		RequiredValue: "--require @opentelemetry/auto-instrumentations-node/register",
 		Description:   `NODE_OPTIONS not set. You can set it by running 'export NODE_OPTIONS="--require @opentelemetry/auto-instrumentations-node/register"' or add the same '--require ...' when starting your application`,
 	}

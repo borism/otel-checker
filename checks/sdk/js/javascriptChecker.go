@@ -50,7 +50,7 @@ func checkJSAutoInstrumentation(
 	reporter *utils.ComponentReporter,
 	packageJsonPath string,
 ) {
-	env.CheckEnvVar("", NodeOptions, reporter)
+	checkAutoInstrumentationNodeOptions(reporter)
 
 	// Dependencies for auto instrumentation on package.json
 	filePath := packageJsonPath + "package.json"
@@ -70,6 +70,10 @@ func checkJSAutoInstrumentation(
 			reporter.AddError("Dependency @opentelemetry/api missing on package.json. Install the dependency with `npm install @opentelemetry/auto-instrumentations-node`")
 		}
 	}
+}
+
+func checkAutoInstrumentationNodeOptions(reporter *utils.ComponentReporter) {
+	env.CheckEnvVar("", NodeOptions, reporter)
 }
 
 func checkJSCodeBasedInstrumentation(

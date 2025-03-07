@@ -13,13 +13,13 @@ func TestCheckEnvVars(t *testing.T) {
 			EnvVars: map[string]string{
 				"OTEL_NODE_RESOURCE_DETECTORS": "env,host,os,serviceinstance",
 			},
-			Language:       "javascript",
+			Language:       "js",
 			ExpectedChecks: []string{"js: OTEL_NODE_RESOURCE_DETECTORS has recommended values"},
 		},
 		{
 			Name:             "missing recommended env vars",
 			EnvVars:          map[string]string{},
-			Language:         "javascript",
+			Language:         "js",
 			ExpectedWarnings: []string{"js: It's recommended the environment variable OTEL_NODE_RESOURCE_DETECTORS to be set to at least `env,host,os,serviceinstance`"},
 		},
 		{
@@ -27,7 +27,7 @@ func TestCheckEnvVars(t *testing.T) {
 			EnvVars: map[string]string{
 				"OTEL_NODE_RESOURCE_DETECTORS": "env,host",
 			},
-			Language:         "javascript",
+			Language:         "js",
 			ExpectedWarnings: []string{"js: It's recommended the environment variable OTEL_NODE_RESOURCE_DETECTORS to be set to at least `env,host,os,serviceinstance`"},
 		},
 	}
@@ -49,29 +49,26 @@ func TestCheckJSAutoInstrumentation(t *testing.T) {
 			EnvVars: map[string]string{
 				"NODE_OPTIONS": "--require @opentelemetry/auto-instrumentations-node/register",
 			},
-			Language:       "javascript",
+			Language:       "js",
 			ExpectedChecks: []string{"js: NODE_OPTIONS is set to '--require @opentelemetry/auto-instrumentations-node/register'"},
-			ExpectedErrors: []string{"js: Could not check file ./package.json: open ./package.json: no such file or directory"},
 		},
 		{
 			Name:     "NODE_OPTIONS not set",
 			EnvVars:  map[string]string{},
-			Language: "javascript",
+			Language: "js",
 			ExpectedWarnings: []string{
 				"js: NODE_OPTIONS not set. You can set it by running 'export NODE_OPTIONS=\"--require @opentelemetry/auto-instrumentations-node/register\"' or add the same '--require ...' when starting your application",
 			},
-			ExpectedErrors: []string{"js: Could not check file ./package.json: open ./package.json: no such file or directory"},
 		},
 		{
 			Name: "NODE_OPTIONS set incorrectly",
 			EnvVars: map[string]string{
 				"NODE_OPTIONS": "--require something-else",
 			},
-			Language: "javascript",
+			Language: "js",
 			ExpectedWarnings: []string{
 				"js: NODE_OPTIONS not set. You can set it by running 'export NODE_OPTIONS=\"--require @opentelemetry/auto-instrumentations-node/register\"' or add the same '--require ...' when starting your application",
 			},
-			ExpectedErrors: []string{"js: Could not check file ./package.json: open ./package.json: no such file or directory"},
 		},
 	}
 
@@ -79,7 +76,7 @@ func TestCheckJSAutoInstrumentation(t *testing.T) {
 		t.Run(tt.Name, func(t *testing.T) {
 			utils.RunEnvVarComponentTest(t, tt, "js",
 				func(reporter utils.Reporter, c *utils.ComponentReporter, language string, components []string) {
-					checkJSAutoInstrumentation(c, "./")
+					checkAutoInstrumentationNodeOptions(c)
 				})
 		})
 	}

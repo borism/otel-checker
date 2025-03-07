@@ -32,7 +32,7 @@ var (
 	OtelExporterOTLPProtocol = EnvVar{
 		Name:          "OTEL_EXPORTER_OTLP_PROTOCOL",
 		RequiredValue: "http/protobuf",
-		Description:   "Protocol for OTLP exporter",
+		Description:   "OTEL_EXPORTER_OTLP_PROTOCOL must be set to 'http/protobuf'",
 	}
 
 	OtelExporterOTLPEndpoint = EnvVar{
@@ -118,7 +118,11 @@ func CheckEnvVar(language string, envVar EnvVar, reporter *utils.ComponentReport
 func checkValue(e EnvVar, value string, report func(string)) bool {
 	if e.RequiredValue != "" {
 		if value != e.RequiredValue {
-			report(fmt.Sprintf("%s must be set to '%s'", e.Name, e.RequiredValue))
+			if e.Description == "" {
+				report(fmt.Sprintf("%s must be set to '%s'", e.Name, e.RequiredValue))
+			} else {
+				report(e.Description)
+			}
 			return true
 		}
 	} else {
