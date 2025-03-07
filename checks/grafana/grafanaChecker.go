@@ -31,16 +31,7 @@ func checkEnvVarsGrafana(reporter utils.Reporter, grafana *utils.ComponentReport
 
 	// Check Beyla specific variables if component is enabled
 	if slices.Contains(components, "beyla") {
-		b := reporter.Component("Beyla")
-		beylaVars := []env.EnvVar{
-			beyla.ServiceName,
-			beyla.OpenPort,
-			beyla.GrafanaCloudSubmit,
-			beyla.GrafanaCloudInstanceID,
-			beyla.GrafanaCloudAPIKey,
-		}
-
-		env.CheckEnvVars(b, language, beylaVars...)
+		beyla.CheckEnvVars(reporter, language)
 	}
 }
 
