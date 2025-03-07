@@ -1,17 +1,10 @@
 package dotnet
 
 import (
-	"encoding/json"
-	"encoding/xml"
 	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"strconv"
-	"strings"
-
 	"otel-checker/checks/env"
 	"otel-checker/checks/utils"
+	"strconv"
 )
 
 const minDotNetVersion = 8
@@ -19,11 +12,14 @@ const minDotNetVersion = 8
 func CheckDotNetSetup(reporter *utils.ComponentReporter, commands utils.Commands) {
 	checkDotNetVersion(reporter)
 
-	project, err := checkProject(reporter)
+	project, err := findAndLoadProject()
 
 	if err != nil {
+		reporter.AddError(fmt.Sprintf("Failed to find and load project: %s", err))
 		return
 	}
+
+	reporter.AddSuccessfulCheck(fmt.Sprintf("Found project: %s", project.path))
 
 	reportDotNetSupportedInstrumentations(reporter, project.SDK)
 
@@ -35,16 +31,13 @@ func CheckDotNetSetup(reporter *utils.ComponentReporter, commands utils.Commands
 }
 
 func checkDotNetVersion(reporter *utils.ComponentReporter) {
-	cmd := exec.Command("dotnet", "--version")
-	stdout, err := cmd.Output()
+	versionParts, err := readDotNetVersion()
 
 	if err != nil {
 		reporter.AddError(fmt.Sprintf("Could not check .NET version: %s", err))
 		return
 	}
 
-	version := strings.TrimSpace(string(stdout))
-	versionParts := strings.Split(version, ".")
 	if len(versionParts) == 0 {
 		reporter.AddError("Could not parse .NET version: version string is empty")
 		return
@@ -84,83 +77,25 @@ func checkDotNetAutoInstrumentation(reporter *utils.ComponentReporter) {
 		})
 }
 
-func checkDotNetCodeBasedInstrumentation(reporter *utils.ComponentReporter) {
-}
+func checkDotNetCodeBasedInstrumentation(reporter *utils.ComponentReporter) {}
 
-func readDotNetDependenciesFromCli() (*NuGetPackageList, error) {
-	cmd := exec.Command("dotnet", "list", "package", "--format", "json", "--include-transitive")
-	stdout, err := cmd.Output()
-
+func findAndLoadProject() (*CSharpProject, error) {
+	projectPath, err := FindCSharpProject(".")
 	if err != nil {
-		return nil, fmt.Errorf("failed to run dotnet list package: %w", err)
-	}
-
-	var deps NuGetPackageList
-	if err := json.Unmarshal(stdout, &deps); err != nil {
-		return nil, fmt.Errorf("failed to parse dependencies JSON: %w", err)
-	}
-
-	return &deps, nil
-}
-
-func findProject() (string, error) {
-	var csprojFiles []string
-
-	err := filepath.WalkDir(".", func(path string, d os.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-
-		if d.IsDir() && path != "." {
-			return filepath.SkipDir
-		}
-		if filepath.Ext(d.Name()) == ".csproj" {
-			csprojFiles = append(csprojFiles, path)
-		}
-		return nil
-	})
-
-	if err != nil {
-		return "", fmt.Errorf("failed to search for .csproj files: %w", err)
-	}
-
-	switch len(csprojFiles) {
-	case 0:
-		return "", fmt.Errorf("no .csproj files found in current directory")
-	case 1:
-		return csprojFiles[0], nil
-	default:
-		return "", fmt.Errorf("multiple .csproj files found: %s", strings.Join(csprojFiles, ", "))
-	}
-}
-
-func checkProject(reporter *utils.ComponentReporter) (*CSharpProject, error) {
-	project, err := findProject()
-
-	if err != nil {
-		reporter.AddError(fmt.Sprintf("Failed to find project file: %s", err))
 		return nil, err
 	}
 
-	reporter.AddSuccessfulCheck(fmt.Sprintf("Found project file: %s", project))
-	content, err := os.ReadFile(project)
+	project, err := LoadCSharpProject(projectPath)
 
 	if err != nil {
-		reporter.AddError(fmt.Sprintf("Failed to read project file: %s", err))
 		return nil, err
 	}
 
-	var csProj CSharpProject
-	if err := xml.Unmarshal(content, &csProj); err != nil {
-		reporter.AddError(fmt.Sprintf("Failed to parse project file: %s", err))
-		return nil, err
-	}
-
-	return &csProj, nil
+	return project, nil
 }
 
 func reportDotNetSupportedInstrumentations(reporter *utils.ComponentReporter, sdk string) {
-	deps, err := readDotNetDependenciesFromCli()
+	deps, err := ReadDependenciesFromCli()
 
 	if err != nil {
 		reporter.AddError(fmt.Sprintf("Failed to read dependencies: %s", err))
@@ -192,7 +127,8 @@ func reportDotNetSupportedInstrumentations(reporter *utils.ComponentReporter, sd
 
 	for _, project := range deps.Projects {
 		for _, framework := range project.Frameworks {
-			for _, pkg := range framework.TopLevelPackages {
+			packages := append(framework.TopLevelPackages, framework.TransitivePackages...)
+			for _, pkg := range packages {
 				lib, ok := instr[pkg.ID]
 
 				if !ok {
@@ -201,7 +137,6 @@ func reportDotNetSupportedInstrumentations(reporter *utils.ComponentReporter, sd
 
 				reporter.AddSuccessfulCheck(fmt.Sprintf("Found supported instrumentation for %s: %s", pkg.ID, lib))
 			}
-
 		}
 	}
 	if len(deps.Projects) == 0 {

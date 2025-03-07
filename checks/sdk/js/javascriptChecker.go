@@ -109,43 +109,29 @@ func checkJSCodeBasedInstrumentation(
 	packageJsonContent, err := os.ReadFile(filePath)
 	if err != nil {
 		reporter.AddError(fmt.Sprintf("Could not check file %s: %s", filePath, err))
-		return
-	}
-
-	content := string(packageJsonContent)
-	requiredDeps := []struct {
-		name    string
-		message string
-	}{
-		{`"@opentelemetry/api"`, "Dependency @opentelemetry/api missing on package.json"},
-	}
-
-	for _, dep := range requiredDeps {
-		if strings.Contains(content, dep.name) {
-			reporter.AddSuccessfulCheck(fmt.Sprintf("Dependency %s added on package.json", strings.Trim(dep.name, `"`)))
+	} else {
+		if strings.Contains(string(packageJsonContent), `"@opentelemetry/api"`) {
+			reporter.AddSuccessfulCheck("Dependency @opentelemetry/api added on package.json")
 		} else {
-			reporter.AddError(dep.message)
+			reporter.AddError("Dependency @opentelemetry/api missing on package.json")
+		}
+
+		if strings.Contains(string(packageJsonContent), `"@opentelemetry/exporter-trace-otlp-proto"`) {
+			reporter.AddError(`Dependency @opentelemetry/exporter-trace-otlp-proto added on package.json, which is not supported by Grafana. Switch the dependency to "@opentelemetry/exporter-trace-otlp-http" instead`)
 		}
 	}
 
-	// Check for unsupported dependencies
-	if strings.Contains(content, `"@opentelemetry/exporter-trace-otlp-proto"`) {
-		reporter.AddError(`Dependency @opentelemetry/exporter-trace-otlp-proto added on package.json, which is not supported by Grafana. Switch the dependency to "@opentelemetry/exporter-trace-otlp-http" instead`)
-	}
-
-	// Check instrumentation file
+	// Check Exporter
 	instrumentationFileContent, err := os.ReadFile(instrumentationFile)
 	if err != nil {
 		reporter.AddError(fmt.Sprintf("Could not check file %s: %s", instrumentationFile, err))
-		return
-	}
-
-	content = string(instrumentationFileContent)
-	if strings.Contains(content, "ConsoleSpanExporter") {
-		reporter.AddWarning("Instrumentation file is using ConsoleSpanExporter. This exporter is useful during debugging, but replace with OTLPTraceExporter to send to Grafana Cloud")
-	}
-	if strings.Contains(content, "ConsoleMetricExporter") {
-		reporter.AddWarning("Instrumentation file is using ConsoleMetricExporter. This exporter is useful during debugging, but replace with OTLPMetricExporter to send to Grafana Cloud")
+	} else {
+		if strings.Contains(string(instrumentationFileContent), "ConsoleSpanExporter") {
+			reporter.AddWarning("Instrumentation file is using ConsoleSpanExporter. This exporter is useful during debugging, but replace with OTLPTraceExporter to send to Grafana Cloud")
+		}
+		if strings.Contains(string(instrumentationFileContent), "ConsoleMetricExporter") {
+			reporter.AddWarning("Instrumentation file is using ConsoleMetricExporter. This exporter is useful during debugging, but replace with OTLPMetricExporter to send to Grafana Cloud")
+		}
 	}
 }
 
