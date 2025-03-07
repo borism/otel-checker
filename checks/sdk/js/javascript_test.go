@@ -50,7 +50,7 @@ func TestCheckJSAutoInstrumentation(t *testing.T) {
 				"NODE_OPTIONS": "--require @opentelemetry/auto-instrumentations-node/register",
 			},
 			Language:       "javascript",
-			ExpectedChecks: []string{"js: NODE_OPTIONS set correctly"},
+			ExpectedChecks: []string{"js: NODE_OPTIONS is set to '--require @opentelemetry/auto-instrumentations-node/register'"},
 			ExpectedErrors: []string{"js: Could not check file ./package.json: open ./package.json: no such file or directory"},
 		},
 		{

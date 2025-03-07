@@ -123,7 +123,11 @@ func checkValue(e EnvVar, value string, report func(string)) bool {
 		}
 	} else {
 		if value == "" {
-			report(e.Description)
+			description := e.Description
+			if description == "" {
+				description = fmt.Sprintf("%s is not set", e.Name)
+			}
+			report(description)
 			return true
 		}
 	}

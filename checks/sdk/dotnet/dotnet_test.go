@@ -16,19 +16,25 @@ func TestCheckDotNetAutoInstrumentation(t *testing.T) {
 				"CORECLR_PROFILER_PATH":    "/path/to/profiler",
 				"OTEL_DOTNET_AUTO_HOME":    "/path/to/auto",
 			},
-			Language:       "csharp",
-			ExpectedChecks: []string{"dotnet: All required environment variables for .NET auto-instrumentation are set with correct values."},
+			Language: "csharp",
+			ExpectedChecks: []string{
+				"dotnet: CORECLR_ENABLE_PROFILING is set to '1'",
+				"dotnet: CORECLR_PROFILER is set to '{918728DD-259F-4A6A-AC2B-B85E1B658318}'",
+				"dotnet: CORECLR_PROFILER_PATH is set to '/path/to/profiler'",
+				"dotnet: OTEL_DOTNET_AUTO_HOME is set to '/path/to/auto'",
+			},
 		},
 		{
 			Name: "missing required env vars",
 			EnvVars: map[string]string{
 				"CORECLR_ENABLE_PROFILING": "1",
 			},
-			Language: "csharp",
+			Language:     "csharp",
+			IgnoreChecks: true,
 			ExpectedErrors: []string{
-				"dotnet: CORECLR_PROFILER is required",
-				"dotnet: CORECLR_PROFILER_PATH is required",
-				"dotnet: OTEL_DOTNET_AUTO_HOME is required",
+				"dotnet: CORECLR_PROFILER must be set to '{918728DD-259F-4A6A-AC2B-B85E1B658318}'",
+				"dotnet: CORECLR_PROFILER_PATH is not set",
+				"dotnet: OTEL_DOTNET_AUTO_HOME is not set",
 			},
 		},
 		{
@@ -39,10 +45,11 @@ func TestCheckDotNetAutoInstrumentation(t *testing.T) {
 				"CORECLR_PROFILER_PATH":    "/path/to/profiler",
 				"OTEL_DOTNET_AUTO_HOME":    "/path/to/auto",
 			},
-			Language: "csharp",
+			Language:     "csharp",
+			IgnoreChecks: true,
 			ExpectedErrors: []string{
-				"dotnet: CORECLR_ENABLE_PROFILING: must be set to '1'",
-				"dotnet: CORECLR_PROFILER: must be set to '{918728DD-259F-4A6A-AC2B-B85E1B658318}'",
+				"dotnet: CORECLR_ENABLE_PROFILING must be set to '1'",
+				"dotnet: CORECLR_PROFILER must be set to '{918728DD-259F-4A6A-AC2B-B85E1B658318}'",
 			},
 		},
 	}

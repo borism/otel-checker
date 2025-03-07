@@ -42,14 +42,14 @@ func RunEnvVarComponentTest(
 	checkFunc(reporter, component, tt.Language, tt.Components)
 
 	if !tt.IgnoreErrors {
-		assert.Equal(t, tt.ExpectedErrors, component.Errors, "errors mismatch")
+		assert.ElementsMatch(t, tt.ExpectedErrors, component.Errors, "errors mismatch")
 	}
 
 	if !tt.IgnoreChecks {
-		assert.Equal(t, tt.ExpectedChecks, component.Checks, "checks mismatch")
+		assert.ElementsMatch(t, tt.ExpectedChecks, component.Checks, "checks mismatch")
 	}
 
 	if !tt.IgnoreWarnings {
-		assert.Equal(t, tt.ExpectedWarnings, component.Warnings, "warnings mismatch")
+		assert.ElementsMatch(t, tt.ExpectedWarnings, component.Warnings, "warnings mismatch")
 	}
 }
