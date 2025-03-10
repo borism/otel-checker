@@ -15,14 +15,15 @@ const WARNINGS = "warnings"
 const CHECKS = "checks"
 
 type Commands struct {
-	Language              string
-	Components            []string
-	ManualInstrumentation bool
-	WebServer             bool
-	InstrumentationFile   string
-	PackageJsonPath       string
-	CollectorConfigPath   string
-	Debug                 bool
+	Language                string
+	Components              []string
+	ManualInstrumentation   bool
+	WebServer               bool
+	InstrumentationFile     string
+	PackageJsonPath         string
+	CollectorConfigPath     string
+	Debug                   bool
+	EnableGrafanaCloudCheck bool
 }
 
 func GetArguments() Commands {
@@ -58,7 +59,7 @@ func GetArguments() Commands {
 		os.Exit(1)
 	}
 
-	possibleComponents := []string{"sdk", "beyla", "alloy", "collector"}
+	possibleComponents := []string{"sdk", "beyla", "alloy", "collector", "grafana-cloud"}
 	components := strings.Split(*componentsString, ",")
 	for _, c := range components {
 		if !slices.Contains(possibleComponents, strings.Trim(c, " ")) {

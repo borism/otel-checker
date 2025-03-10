@@ -4,6 +4,7 @@ import (
 	"otel-checker/checks/alloy"
 	"otel-checker/checks/beyla"
 	"otel-checker/checks/collector"
+	"otel-checker/checks/env"
 	"otel-checker/checks/grafana"
 	"otel-checker/checks/sdk"
 	"otel-checker/checks/sdk/dotnet"
@@ -17,27 +18,24 @@ import (
 func RunAllChecks(commands utils.Commands) map[string][]string {
 	reporter := utils.Reporter{}
 
-	grafana.CheckGrafanaSetup(reporter, reporter.Component("Grafana Cloud"), commands.Language, commands.Components)
+	env.CheckCommonEnvVars(reporter.Component("Common Environment Variables"), commands.Language)
 
 	for _, c := range commands.Components {
-		if c == "alloy" {
-			alloy.CheckAlloySetup(reporter.Component("Alloy"), commands.Language)
-		}
-
-		if c == "beyla" {
+		switch c {
+		case "sdk":
+			SDKSetup(reporter.Component("SDK"), commands)
+		case "beyla":
 			beyla.CheckBeylaSetup(reporter.Component("Beyla"), commands.Language)
-		}
-
-		if c == "collector" {
+		case "alloy":
+			alloy.CheckAlloySetup(reporter.Component("Alloy"), commands.Language)
+		case "collector":
 			collector.CheckCollectorSetup(
 				reporter.Component("Collector"),
 				commands.Language,
 				commands.CollectorConfigPath,
 			)
-		}
-
-		if c == "sdk" {
-			SDKSetup(reporter.Component("SDK"), commands)
+		case "grafana-cloud":
+			grafana.CheckGrafanaSetup(reporter, reporter.Component("Grafana Cloud"), commands)
 		}
 	}
 
